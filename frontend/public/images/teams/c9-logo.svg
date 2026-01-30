@@ -1,0 +1,11 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00A8E1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0C2237;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" fill="url(#bgGrad)"/>
+  <text x="100" y="80" font-size="48" font-weight="bold" text-anchor="middle" fill="white" font-family="Arial">CLOUD9</text>
+  <text x="100" y="120" font-size="24" text-anchor="middle" fill="#D4AF37" font-family="Arial">C9</text>
+</svg>

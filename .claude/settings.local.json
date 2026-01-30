@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:cloud9.devpost.com)",
+      "WebFetch(domain:docs.grid.gg)",
+      "WebFetch(domain:blog.grid.gg)",
+      "mcp__acp__Write",
+      "mcp__acp__Bash",
+      "mcp__acp__Edit"
+    ]
+  }
+}

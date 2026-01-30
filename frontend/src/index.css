@@ -1,0 +1,85 @@
+:root {
+    font-family:
+        "Inter",
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    color-scheme: dark;
+    color: rgba(255, 255, 255, 0.95);
+    background-color: #0f0f1a;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+a {
+    font-weight: 500;
+    color: #00a8e1;
+    text-decoration: inherit;
+}
+
+a:hover {
+    color: #4fc3f7;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    line-height: 1.2;
+}
+
+button {
+    border-radius: 8px;
+    border: 1px solid transparent;
+    padding: 0.6em 1.2em;
+    font-size: 1em;
+    font-weight: 500;
+    font-family: inherit;
+    background-color: #1a1a2e;
+    color: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+button:hover {
+    border-color: #00a8e1;
+    background-color: rgba(0, 168, 225, 0.1);
+}
+
+button:focus,
+button:focus-visible {
+    outline: 2px solid #00a8e1;
+    outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+}
