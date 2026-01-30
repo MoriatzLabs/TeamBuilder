@@ -10,7 +10,7 @@ const C9_PLAYERS = [
     name: 'Thanatos',
     realName: 'Park Seung-gyu',
     role: 'TOP',
-    image: '/images/players/thanatos.svg',
+    image: '/images/players/thanatos.webp',
     nationality: 'KR',
   },
   {
@@ -18,7 +18,7 @@ const C9_PLAYERS = [
     name: 'Blaber',
     realName: 'Robert Huang',
     role: 'JGL',
-    image: '/images/players/blaber.svg',
+    image: '/images/players/blaber.webp',
     nationality: 'US',
   },
   {
@@ -26,7 +26,7 @@ const C9_PLAYERS = [
     name: 'APA',
     realName: 'Eain Stearns',
     role: 'MID',
-    image: '/images/players/apa.svg',
+    image: '/images/players/apa.jpeg',
     nationality: 'US',
   },
   {
@@ -34,7 +34,7 @@ const C9_PLAYERS = [
     name: 'Zven',
     realName: 'Jesper Svenningsen',
     role: 'ADC',
-    image: '/images/players/zven.svg',
+    image: '/images/players/zven.webp',
     nationality: 'DK',
   },
   {
@@ -42,7 +42,7 @@ const C9_PLAYERS = [
     name: 'Vulcan',
     realName: 'Philippe Laflamme',
     role: 'SUP',
-    image: '/images/players/vulcan.svg',
+    image: '/images/players/vulcan.webp',
     nationality: 'CA',
   },
 ];
