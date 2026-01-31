@@ -6,7 +6,9 @@
       "WebFetch(domain:blog.grid.gg)",
       "mcp__acp__Write",
       "mcp__acp__Bash",
-      "mcp__acp__Edit"
+      "mcp__acp__Edit",
+      "WebFetch(domain:developer.riotgames.com)",
+      "WebFetch(domain:raw.communitydragon.org)"
     ]
   }
 }

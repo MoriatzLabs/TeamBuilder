@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PlayerDashboard } from "./features/scouting/components/PlayerDashboard";
+import { DraftSimulator } from "./features/draft/components/DraftSimulator";
+import { cn } from "@/lib/utils";
 import "./App.css";
 
 const queryClient = new QueryClient({
@@ -11,41 +14,47 @@ const queryClient = new QueryClient({
   },
 });
 
+type Tab = "players" | "draft";
+
 function App() {
+  const [activeTab, setActiveTab] = useState<Tab>("draft");
+
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="app">
-        <header className="app-header">
-          <div className="header-content">
-            <div className="logo-section">
-              <img
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Cloud9_logo.svg/1200px-Cloud9_logo.svg.png"
-                alt="Cloud9"
-                className="c9-logo"
-              />
-              <h1>TeamBuilder</h1>
-            </div>
-            <nav className="nav-links">
-              <a href="#players" className="nav-link active">
-                Players
-              </a>
-              <a href="#draft" className="nav-link">
-                Draft
-              </a>
-              <a href="#meta" className="nav-link">
-                Meta
-              </a>
-            </nav>
+      <div className="h-screen flex flex-col bg-background">
+        {/* Top Navigation Bar */}
+        <div className="h-12 flex-shrink-0 flex items-center px-6 bg-card border-b border-border-subtle">
+          <div className="flex items-center gap-6">
+            <button
+              onClick={() => setActiveTab("draft")}
+              className={cn(
+                "text-sm transition-colors",
+                activeTab === "draft"
+                  ? "text-foreground font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Draft
+            </button>
+            <button
+              onClick={() => setActiveTab("players")}
+              className={cn(
+                "text-sm transition-colors",
+                activeTab === "players"
+                  ? "text-foreground font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Players
+            </button>
           </div>
-        </header>
-        <main className="app-main">
-          <PlayerDashboard />
-        </main>
-        <footer className="app-footer">
-          <p>
-            Cloud9 x JetBrains Hackathon 2026 - Powered by GRID Esports Data
-          </p>
-        </footer>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {activeTab === "draft" && <DraftSimulator />}
+          {activeTab === "players" && <PlayerDashboard />}
+        </div>
       </div>
     </QueryClientProvider>
   );
