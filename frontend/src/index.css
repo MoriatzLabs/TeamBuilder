@@ -1,45 +1,47 @@
 @import "tailwindcss";
 
 @theme {
-    /* LoL-inspired Light Theme Colors */
-    --color-background: #e8e4dc;
-    --color-foreground: #1a1a2e;
-    --color-card: #f5f1e8;
-    --color-card-foreground: #1a1a2e;
+    /* Dark Theme Colors - Professional Esports Aesthetic */
 
-    /* Primary - Deep Blue (LoL header style) */
-    --color-primary: #0a4b78;
+    /* Core Backgrounds */
+    --color-background: #0f1318;
+    --color-foreground: #e4e8ed;
+    --color-card: #171c24;
+    --color-card-foreground: #e4e8ed;
+
+    /* Primary - Vibrant Blue */
+    --color-primary: #3b82f6;
     --color-primary-foreground: #ffffff;
 
-    /* Secondary - Gold accent */
+    /* Secondary - Gold accent (esports brand) */
     --color-secondary: #c9aa71;
-    --color-secondary-foreground: #1a1a2e;
+    --color-secondary-foreground: #0f1318;
 
-    /* Accent - Teal */
-    --color-accent: #0397ab;
-    --color-accent-foreground: #ffffff;
+    /* Accent - Cyan */
+    --color-accent: #22d3ee;
+    --color-accent-foreground: #0f1318;
 
-    /* Muted backgrounds */
-    --color-muted: #d4cfc4;
-    --color-muted-foreground: #5a5a6e;
+    /* Muted surfaces */
+    --color-muted: #1e2530;
+    --color-muted-foreground: #7c8594;
 
     /* Borders */
-    --color-border: #c9aa71;
-    --color-border-subtle: #d4cfc4;
+    --color-border: #2a3441;
+    --color-border-subtle: #232b38;
 
     /* Team Colors */
-    --color-blue-team: #0397ab;
-    --color-blue-team-bg: rgba(3, 151, 171, 0.1);
-    --color-red-team: #c24b4b;
-    --color-red-team-bg: rgba(194, 75, 75, 0.1);
+    --color-blue-team: #3b82f6;
+    --color-blue-team-bg: rgba(59, 130, 246, 0.15);
+    --color-red-team: #ef4444;
+    --color-red-team-bg: rgba(239, 68, 68, 0.15);
 
     /* Status Colors */
-    --color-success: #10b981;
+    --color-success: #22c55e;
     --color-warning: #f59e0b;
     --color-danger: #ef4444;
 
     /* Ring */
-    --color-ring: #c9aa71;
+    --color-ring: #3b82f6;
 
     /* Radius */
     --radius-sm: 0.25rem;
@@ -59,7 +61,7 @@
     line-height: 1.5;
     font-weight: 400;
 
-    color-scheme: light;
+    color-scheme: dark;
     color: var(--color-foreground);
     background-color: var(--color-background);
 
@@ -104,4 +106,23 @@ h5,
 h6 {
     line-height: 1.2;
     color: var(--color-foreground);
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted-foreground);
 }

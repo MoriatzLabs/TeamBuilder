@@ -3,7 +3,7 @@ import { ChampionCard } from "./ChampionCard";
 import { useDraftStore } from "../store/draftStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 
 const POSITION_ICON_BASE =
   "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-champ-select/global/default/svg";
@@ -52,16 +52,54 @@ export function ChampionGrid() {
   return (
     <div className="flex flex-col h-full bg-card rounded-2xl border border-border-subtle overflow-hidden">
       {/* Header with Search and Filters */}
-      <div className="p-4 border-b border-border-subtle">
+      <div className="p-6 pb-5 space-y-6">
+        {/* Role Filters - icons only, bigger */}
+        <div className="flex justify-center gap-3">
+          {ROLE_FILTERS.map((filter) => (
+            <button
+              key={filter.key ?? "all"}
+              onClick={() => setRoleFilter(filter.key)}
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-lg transition-all",
+                roleFilter === filter.key
+                  ? "bg-primary/20 ring-2 ring-primary"
+                  : "bg-muted/50 hover:bg-muted/80",
+              )}
+              title={filter.label}
+            >
+              {filter.icon ? (
+                <img
+                  src={filter.icon}
+                  alt={filter.label}
+                  className={cn(
+                    "w-6 h-6",
+                    roleFilter === filter.key ? "opacity-100" : "opacity-50",
+                  )}
+                />
+              ) : (
+                <span
+                  className={cn(
+                    "text-xs font-bold",
+                    roleFilter === filter.key
+                      ? "text-primary"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  All
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
         {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search champions..."
-            className="w-full h-10 pl-10 pr-10 bg-muted/50 border border-border-subtle rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
+            className="w-full h-11 px-4 bg-muted/50 border border-border-subtle rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
           />
           {searchQuery && (
             <button
@@ -71,36 +109,6 @@ export function ChampionGrid() {
               <X className="w-4 h-4" />
             </button>
           )}
-        </div>
-
-        {/* Role Filters with icons */}
-        <div className="flex gap-2 flex-wrap">
-          {ROLE_FILTERS.map((filter) => (
-            <button
-              key={filter.key ?? "all"}
-              onClick={() => setRoleFilter(filter.key)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full transition-all",
-                roleFilter === filter.key
-                  ? "bg-foreground text-background"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {filter.icon && (
-                <img
-                  src={filter.icon}
-                  alt={filter.label}
-                  className={cn(
-                    "w-4 h-4",
-                    roleFilter === filter.key
-                      ? "brightness-0 invert"
-                      : "opacity-50",
-                  )}
-                />
-              )}
-              {filter.label}
-            </button>
-          ))}
         </div>
       </div>
 

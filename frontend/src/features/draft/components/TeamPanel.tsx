@@ -59,11 +59,11 @@ function BanSlot({
   return (
     <div
       className={cn(
-        "relative w-12 h-12 rounded-full overflow-hidden transition-all",
+        "relative w-14 h-14 rounded-full overflow-hidden transition-all",
         champion
           ? "ring-2 ring-red-400/50"
           : isActive
-            ? "ring-2 ring-amber-400 bg-amber-50"
+            ? "ring-2 ring-amber-400 bg-muted/50"
             : "bg-muted/50 border border-border-subtle",
       )}
     >
@@ -89,7 +89,7 @@ function BanSlot({
       ) : (
         <div className="w-full h-full flex items-center justify-center text-muted-foreground/50 text-sm font-medium">
           {isActive ? (
-            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
           ) : (
             index + 1
           )}
@@ -104,13 +104,18 @@ function PickSlot({
   roleConfig,
   isActive,
   team,
+  playerName,
+  playerImage,
 }: {
   champion: Champion | null;
   roleConfig: (typeof ROLE_CONFIG)[number];
   isActive: boolean;
   team: Team;
+  playerName: string;
+  playerImage: string;
 }) {
   const [imageError, setImageError] = useState(false);
+  const [playerImageError, setPlayerImageError] = useState(false);
 
   const getInitials = (name: string) =>
     name
@@ -125,15 +130,15 @@ function PickSlot({
       className={cn(
         "flex items-center gap-4 p-4 rounded-xl transition-all",
         team === "blue" ? "flex-row" : "flex-row-reverse",
-        isActive && "bg-amber-50 ring-2 ring-amber-400",
-        champion && !isActive && "bg-white/60",
-        !champion && !isActive && "bg-muted/30",
+        isActive && "bg-muted/50 ring-2 ring-amber-400",
+        champion && !isActive && "bg-muted/20",
+        !champion && !isActive && "bg-muted/10",
       )}
     >
       {/* Champion Avatar */}
       <div
         className={cn(
-          "w-14 h-14 rounded-full overflow-hidden flex-shrink-0 transition-all relative",
+          "w-16 h-16 rounded-full overflow-hidden flex-shrink-0 transition-all",
           champion
             ? team === "blue"
               ? "ring-2 ring-blue-team"
@@ -158,57 +163,60 @@ function PickSlot({
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             {isActive ? (
-              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />
             ) : (
               <img
                 src={roleConfig.icon}
                 alt={roleConfig.label}
-                className="w-6 h-6 opacity-40"
+                className="w-8 h-8 opacity-50"
               />
             )}
           </div>
         )}
-
-        {/* Role icon badge */}
-        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-card rounded-full border-2 border-background flex items-center justify-center">
-          <img
-            src={roleConfig.icon}
-            alt={roleConfig.label}
-            className="w-3.5 h-3.5 opacity-60"
-          />
-        </div>
       </div>
 
-      {/* Info */}
+      {/* Info - champion or player info */}
       <div
         className={cn(
-          "flex flex-col flex-1 min-w-0 gap-0.5",
-          team === "blue" ? "items-start" : "items-end",
+          "flex items-center gap-3 flex-1 min-w-0",
+          team === "blue" ? "flex-row" : "flex-row-reverse",
         )}
       >
+        {/* Player Avatar */}
+        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-border-subtle">
+          {!playerImageError ? (
+            <img
+              src={playerImage}
+              alt={playerName}
+              className="w-full h-full object-cover"
+              onError={() => setPlayerImageError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted text-xs font-semibold">
+              {getInitials(playerName)}
+            </div>
+          )}
+        </div>
+
+        {/* Player/Champion Name */}
         <div
           className={cn(
-            "flex items-center gap-1.5",
-            team === "red" && "flex-row-reverse",
+            "flex flex-col flex-1 min-w-0",
+            team === "blue" ? "items-start" : "items-end",
           )}
         >
-          <img
-            src={roleConfig.icon}
-            alt={roleConfig.label}
-            className="w-3.5 h-3.5 opacity-50"
-          />
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            {roleConfig.label}
+          <span className="text-xs text-muted-foreground font-medium">
+            {playerName}
+          </span>
+          <span
+            className={cn(
+              "text-base font-semibold truncate max-w-full",
+              champion ? "text-foreground" : "text-muted-foreground/60",
+            )}
+          >
+            {champion ? champion.name : "Selecting..."}
           </span>
         </div>
-        <span
-          className={cn(
-            "text-sm font-semibold truncate max-w-full",
-            champion ? "text-foreground" : "text-muted-foreground/50",
-          )}
-        >
-          {champion ? champion.name : "Selecting..."}
-        </span>
       </div>
     </div>
   );
@@ -227,45 +235,29 @@ export function TeamPanel({ team, teamData, isActive }: TeamPanelProps) {
 
   const activeSlot = getActiveSlotInfo();
 
+  // Player roster for C9
+  const playerRoster = [
+    { name: "Thanatos", image: "/images/C9.jpg" },
+    { name: "Blaber", image: "/images/C9.jpg" },
+    { name: "Apa", image: "/images/C9.jpg" },
+    { name: "Berserker", image: "/images/C9.jpg" },
+    { name: "Vulcan", image: "/images/C9.jpg" },
+  ];
+
   return (
     <div
       className={cn(
-        "flex flex-col h-full rounded-2xl overflow-hidden bg-card border transition-all",
+        "flex flex-col h-full rounded-2xl bg-card border transition-all",
         team === "blue" ? "border-blue-team/20" : "border-red-team/20",
         isActive && "ring-1 ring-amber-400/50",
       )}
     >
-      {/* Team Header */}
-      <div className="px-5 py-4 border-b border-border-subtle">
-        <div
-          className={cn(
-            "flex items-center gap-3",
-            team === "red" && "flex-row-reverse",
-          )}
-        >
-          <div
-            className={cn(
-              "w-3 h-3 rounded-full",
-              team === "blue" ? "bg-blue-team" : "bg-red-team",
-            )}
-          />
-          <h3 className="font-semibold text-lg text-foreground">
-            {teamData.name}
-          </h3>
-          {isActive && (
-            <span className="ml-auto text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-              Picking
-            </span>
-          )}
-        </div>
-      </div>
-
       {/* BANS Section */}
-      <div className="px-5 py-4 border-b border-border-subtle bg-muted/20">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+      <div className="px-6 pt-6 pb-10 border-b border-border-subtle bg-muted/20 rounded-t-2xl">
+        <div className="text-sm font-semibold text-foreground uppercase tracking-wider mb-8">
           Bans
         </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-3 pb-2">
           {teamData.bans.map((champion, index) => (
             <BanSlot
               key={`ban-${index}`}
@@ -278,11 +270,11 @@ export function TeamPanel({ team, teamData, isActive }: TeamPanelProps) {
       </div>
 
       {/* Picks Section */}
-      <div className="flex-1 flex flex-col p-4 gap-2">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">
+      <div className="flex-1 flex flex-col p-6 pt-6 gap-2 rounded-b-2xl overflow-hidden">
+        <div className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3 px-1">
           Team
         </div>
-        <div className="flex-1 flex flex-col gap-2 justify-between">
+        <div className="flex-1 flex flex-col gap-2.5 justify-between">
           {ROLE_CONFIG.map((roleConfig, index) => (
             <PickSlot
               key={roleConfig.key}
@@ -292,6 +284,8 @@ export function TeamPanel({ team, teamData, isActive }: TeamPanelProps) {
                 activeSlot.type === "pick" && activeSlot.index === index
               }
               team={team}
+              playerName={playerRoster[index].name}
+              playerImage={playerRoster[index].image}
             />
           ))}
         </div>

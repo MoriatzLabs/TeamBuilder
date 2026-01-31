@@ -1,6 +1,5 @@
 /* ===== PLAYER DASHBOARD STYLES ===== */
-/* These styles are for the scouting/players feature */
-/* Draft feature now uses Tailwind CSS */
+/* Dark theme styles for the scouting/players feature */
 
 /* Player Dashboard */
 .player-dashboard {
@@ -50,7 +49,7 @@
 
 .period-select:focus {
     outline: none;
-    border-color: var(--color-secondary);
+    border-color: var(--color-primary);
 }
 
 /* Roster Grid */
@@ -63,7 +62,7 @@
 /* Player Card */
 .player-card {
     background: var(--color-card);
-    border: 2px solid var(--color-border-subtle);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 12px;
     padding: 1.5rem;
     cursor: pointer;
@@ -72,17 +71,17 @@
 }
 
 .player-card:hover {
-    border-color: var(--color-secondary);
+    border-color: var(--color-primary);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(201, 170, 113, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .player-card.selected {
-    border-color: var(--color-secondary);
+    border-color: var(--color-primary);
     background: linear-gradient(
         135deg,
         var(--color-card) 0%,
-        rgba(201, 170, 113, 0.08) 100%
+        rgba(59, 130, 246, 0.1) 100%
     );
 }
 
@@ -158,7 +157,7 @@
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
-    color: var(--color-secondary);
+    color: var(--color-primary);
 }
 
 /* Player Details Section */
@@ -238,10 +237,10 @@
 .stat-box.highlight {
     background: linear-gradient(
         135deg,
-        rgba(201, 170, 113, 0.15) 0%,
+        rgba(59, 130, 246, 0.15) 0%,
         var(--color-muted) 100%
     );
-    border: 1px solid var(--color-secondary);
+    border: 1px solid var(--color-primary);
 }
 
 .stat-value {
@@ -420,7 +419,7 @@
 }
 
 .champion-table tbody tr.top-pick {
-    background: rgba(201, 170, 113, 0.08);
+    background: rgba(59, 130, 246, 0.1);
 }
 
 .champion-icon-wrapper {
@@ -478,7 +477,7 @@
 }
 
 .top-pick .champion-name-cell .rank {
-    background: var(--color-secondary);
+    background: var(--color-primary);
     color: var(--color-foreground);
 }
 
@@ -500,7 +499,7 @@
     font-weight: 500;
 }
 
-/* Recharts Tooltip Override */
+/* Recharts Tooltip Override - Dark Theme */
 .recharts-tooltip-wrapper {
     outline: none !important;
 }
@@ -509,6 +508,15 @@
     background: var(--color-card) !important;
     border: 1px solid var(--color-border-subtle) !important;
     border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.recharts-default-tooltip .recharts-tooltip-label {
+    color: var(--color-foreground) !important;
+}
+
+.recharts-default-tooltip .recharts-tooltip-item {
+    color: var(--color-muted-foreground) !important;
 }
 
 /* Responsive Design */
