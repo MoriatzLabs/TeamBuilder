@@ -26,7 +26,7 @@ const C9_PLAYERS = [
     name: 'APA',
     realName: 'Eain Stearns',
     role: 'MID',
-    image: '/images/players/apa.jpeg',
+    image: '/images/players/apa.webp',
     nationality: 'US',
   },
   {
