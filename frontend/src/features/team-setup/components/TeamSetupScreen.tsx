@@ -90,18 +90,31 @@ function getChampionImageUrl(championName: string): string {
     leesin: "LeeSin",
     reksai: "RekSai",
     smolder: "Smolder",
+    vi: "Vi",
+    sejuani: "Sejuani",
+    xinzhao: "XinZhao",
+    taliyah: "Taliyah",
+    viktor: "Viktor",
+    senna: "Senna",
+    xayah: "Xayah",
+    rell: "Rell",
+    sylas: "Sylas",
+    bard: "Bard",
+    jax: "Jax",
+    sion: "Sion",
+    poppy: "Poppy",
   };
 
   let key = specialCases[formatted];
-  
+
   if (!key) {
     key = formatted
       .split("")
       .map((char, index) => (index === 0 ? char.toUpperCase() : char))
       .join("");
   }
-  
-  return `https://ddragon.leagueoflegends.com/cdn/latest/img/champion/${key}.png`;
+
+  return `/images/champions/${key}.png`;
 }
 
 async function fetchC9Players(): Promise<C9Response> {
@@ -114,11 +127,12 @@ async function fetchChampionPool(
   playerId: string,
   period: string,
 ): Promise<ChampionPoolResponse> {
-  const { ENEMY_CHAMPION_POOLS } = await import("@/shared/constants/enemyChampionPools");
-  
+  const { ENEMY_CHAMPION_POOLS } =
+    await import("@/shared/constants/enemyChampionPools");
+
   if (ENEMY_CHAMPION_POOLS[playerId]) {
     const staticPool = ENEMY_CHAMPION_POOLS[playerId];
-    
+
     for (const team of ENEMY_TEAMS) {
       const player = team.players.find((p) => p.id === playerId);
       if (player) {
@@ -135,7 +149,7 @@ async function fetchChampionPool(
       }
     }
   }
-  
+
   const response = await fetch(
     `/api/players/${playerId}/champion-pool?period=${period}`,
   );
@@ -147,7 +161,7 @@ export function TeamSetupScreen() {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [enemySelectedIndex, setEnemySelectedIndex] = useState<number>(0);
   const [isAutoRotating, setIsAutoRotating] = useState(true);
-  const [isEnemyAutoRotating, setIsEnemyAutoRotating] = useState(true);
+  const [_isEnemyAutoRotating, setIsEnemyAutoRotating] = useState(true);
   const timePeriod = "LAST_3_MONTHS";
 
   const {
@@ -183,9 +197,10 @@ export function TeamSetupScreen() {
   const syncToRole = (role: string) => {
     const c9Index = findPlayerByRole(players, role);
     const enemyIndex = findPlayerByRole(enemyPlayers, role);
-    
+
     if (c9Index !== -1) setSelectedIndex(c9Index);
-    if (enemyIndex !== -1 && enemyPlayers.length > 0) setEnemySelectedIndex(enemyIndex);
+    if (enemyIndex !== -1 && enemyPlayers.length > 0)
+      setEnemySelectedIndex(enemyIndex);
   };
 
   useEffect(() => {
@@ -247,7 +262,8 @@ export function TeamSetupScreen() {
   const goToEnemyPrevious = () => {
     setIsEnemyAutoRotating(false);
     setIsAutoRotating(false);
-    const prevIndex = (enemySelectedIndex - 1 + enemyPlayers.length) % enemyPlayers.length;
+    const prevIndex =
+      (enemySelectedIndex - 1 + enemyPlayers.length) % enemyPlayers.length;
     setEnemySelectedIndex(prevIndex);
     const prevRole = enemyPlayers[prevIndex]?.role;
     if (prevRole) {
@@ -303,7 +319,6 @@ export function TeamSetupScreen() {
     );
   }
 
-  const roleConfig = selectedPlayer ? ROLE_CONFIG[selectedPlayer.role] : null;
   const championPool = championPoolData?.championPool || [];
 
   return (
@@ -344,12 +359,14 @@ export function TeamSetupScreen() {
                       key={player.id}
                       className={cn(
                         "transition-all duration-500 cursor-pointer",
-                        isSelected ? "scale-100 z-20" : "scale-75 opacity-60 z-10",
+                        isSelected
+                          ? "scale-100 z-20"
+                          : "scale-75 opacity-60 z-10",
                       )}
                       style={{
                         transform: `translateX(${offset * 20}px) scale(${isSelected ? 1 : 0.75})`,
                       }}
-                      onClick={() => selectPlayer(index)}
+                      onClick={() => setSelectedIndex(index)}
                     >
                       <Card
                         className={cn(
@@ -459,7 +476,9 @@ export function TeamSetupScreen() {
                         key={player.id}
                         className={cn(
                           "transition-all duration-500 cursor-pointer",
-                          isSelected ? "scale-100 z-20" : "scale-75 opacity-60 z-10",
+                          isSelected
+                            ? "scale-100 z-20"
+                            : "scale-75 opacity-60 z-10",
                         )}
                         style={{
                           transform: `translateX(${offset * 20}px) scale(${isSelected ? 1 : 0.75})`,
@@ -475,12 +494,12 @@ export function TeamSetupScreen() {
                           )}
                         >
                           <div className="relative">
-                              <div
-                                className={cn(
-                                  "relative overflow-hidden",
-                                  isSelected ? "w-48 h-56" : "w-36 h-44",
-                                )}
-                              >
+                            <div
+                              className={cn(
+                                "relative overflow-hidden",
+                                isSelected ? "w-48 h-56" : "w-36 h-44",
+                              )}
+                            >
                               <img
                                 src={player.image}
                                 alt={player.name}
@@ -521,24 +540,32 @@ export function TeamSetupScreen() {
                 </div>
               </div>
 
-              {enemyChampionPoolData?.championPool && enemyChampionPoolData.championPool.length > 0 && (
-                <div className="mt-6">
-                  <p className="text-xs text-muted-foreground text-center mb-3">
-                    Champion Pool - {selectedEnemyPlayer?.name}
-                  </p>
-                  <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {enemyChampionPoolData.championPool.slice(0, 10).map((champ) => (
-                      <ChampionPoolIcon key={champ.champion} champion={champ} />
-                    ))}
+              {enemyChampionPoolData?.championPool &&
+                enemyChampionPoolData.championPool.length > 0 && (
+                  <div className="mt-6">
+                    <p className="text-xs text-muted-foreground text-center mb-3">
+                      Champion Pool - {selectedEnemyPlayer?.name}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      {enemyChampionPoolData.championPool
+                        .slice(0, 10)
+                        .map((champ) => (
+                          <ChampionPoolIcon
+                            key={champ.champion}
+                            champion={champ}
+                          />
+                        ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 border-l border-border-subtle">
             <div className="text-center text-muted-foreground">
-              <p className="text-sm">Select an enemy team to view their roster</p>
+              <p className="text-sm">
+                Select an enemy team to view their roster
+              </p>
             </div>
           </div>
         )}
@@ -548,7 +575,9 @@ export function TeamSetupScreen() {
         <div className="w-full h-full flex items-center justify-center">
           <div className="max-w-5xl w-full flex items-center gap-12 justify-center">
             <div className="max-w-md flex-1 flex flex-col items-center justify-center px-4">
-              <h3 className="text-lg font-semibold mb-6 text-center">Select Enemy Team</h3>
+              <h3 className="text-lg font-semibold mb-6 text-center">
+                Select Enemy Team
+              </h3>
               <select
                 value={enemyTeam?.id || ""}
                 onChange={(e) => {
@@ -570,7 +599,9 @@ export function TeamSetupScreen() {
             </div>
 
             <div className="max-w-md flex-1 flex flex-col items-center justify-center px-4">
-              <h3 className="text-lg font-semibold mb-6 text-center">C9 Side</h3>
+              <h3 className="text-lg font-semibold mb-6 text-center">
+                C9 Side
+              </h3>
               <div className="flex gap-3 justify-center w-full">
                 <Button
                   variant={c9Side === "blue" ? "default" : "outline"}
@@ -586,7 +617,8 @@ export function TeamSetupScreen() {
                   variant={c9Side === "red" ? "default" : "outline"}
                   className={cn(
                     "min-w-[140px]",
-                    c9Side === "red" && "bg-red-team text-white hover:bg-red-team/90 ring-2 ring-red-team",
+                    c9Side === "red" &&
+                      "bg-red-team text-white hover:bg-red-team/90 ring-2 ring-red-team",
                   )}
                   onClick={() => setC9Side("red")}
                 >
@@ -596,7 +628,9 @@ export function TeamSetupScreen() {
             </div>
 
             <div className="max-w-md flex-1 flex flex-col items-center justify-center px-4">
-              <h3 className="text-lg font-semibold mb-4 text-center opacity-0 pointer-events-none">Start Draft</h3>
+              <h3 className="text-lg font-semibold mb-4 text-center opacity-0 pointer-events-none">
+                Start Draft
+              </h3>
               <Button
                 onClick={handleStartDraft}
                 disabled={!canStartDraft}

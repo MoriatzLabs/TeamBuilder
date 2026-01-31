@@ -8,6 +8,9 @@ export const envValidationSchema = Joi.object({
   GRID_STATS_FEED_ENDPOINT: Joi.string().uri().required(),
   GRID_WS_ENDPOINT: Joi.string().uri().required(),
 
+  // OpenAI API (optional - falls back to mock recommendations)
+  OPENAI_API_KEY: Joi.string().optional(),
+
   // Application
   PORT: Joi.number().default(3000),
   NODE_ENV: Joi.string()

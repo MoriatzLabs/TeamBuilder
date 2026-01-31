@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { TeamAnalysis, Team } from "../types/analytics.types";
+import type { Team } from "../types/analytics.types";
 import { useDraftStore } from "../store/draftStore";
 import { CheckCircle, AlertTriangle, Zap, Shield, Sword } from "lucide-react";
 

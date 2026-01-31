@@ -30,6 +30,7 @@
     "@nestjs/websockets": "^11.0.1",
     "graphql": "^16.8.0",
     "joi": "^17.11.0",
+    "openai": "^6.17.0",
     "p-queue": "^7.3.0",
     "redis": "^4.6.0",
     "reflect-metadata": "^0.2.2",

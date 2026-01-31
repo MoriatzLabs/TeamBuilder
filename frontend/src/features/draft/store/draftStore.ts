@@ -5,6 +5,7 @@ import type {
   DraftAction,
   TeamDraft,
   DraftStep,
+  DraftPlayer,
 } from "../types/draft.types";
 import type {
   Recommendation,
@@ -13,6 +14,80 @@ import type {
 } from "../types/analytics.types";
 import type { Player, EnemyTeam } from "@/store/appStore";
 import { getCurrentDraftStep, isDraftComplete } from "../utils/draftSequence";
+
+// Mock champion pool data for C9 players
+const C9_PLAYER_POOLS: Record<
+  string,
+  { champion: string; games: number; winRate: number }[]
+> = {
+  "c9-thanatos": [
+    { champion: "Rumble", games: 10, winRate: 70.0 },
+    { champion: "K'Sante", games: 8, winRate: 62.5 },
+    { champion: "Renekton", games: 7, winRate: 57.1 },
+    { champion: "Jayce", games: 6, winRate: 66.7 },
+    { champion: "Gnar", games: 5, winRate: 60.0 },
+  ],
+  "c9-blaber": [
+    { champion: "Lee Sin", games: 12, winRate: 66.7 },
+    { champion: "Nidalee", games: 8, winRate: 75.0 },
+    { champion: "Viego", games: 7, winRate: 57.1 },
+    { champion: "Rek'Sai", games: 6, winRate: 66.7 },
+    { champion: "Elise", games: 5, winRate: 60.0 },
+  ],
+  "c9-apa": [
+    { champion: "Ahri", games: 10, winRate: 70.0 },
+    { champion: "Azir", games: 8, winRate: 62.5 },
+    { champion: "Syndra", games: 7, winRate: 57.1 },
+    { champion: "Orianna", games: 6, winRate: 66.7 },
+    { champion: "Akali", games: 5, winRate: 60.0 },
+  ],
+  "c9-zven": [
+    { champion: "Jinx", games: 11, winRate: 72.7 },
+    { champion: "Kai'Sa", games: 9, winRate: 66.7 },
+    { champion: "Aphelios", games: 8, winRate: 62.5 },
+    { champion: "Zeri", games: 6, winRate: 66.7 },
+    { champion: "Ezreal", games: 5, winRate: 60.0 },
+  ],
+  "c9-vulcan": [
+    { champion: "Nautilus", games: 10, winRate: 70.0 },
+    { champion: "Thresh", games: 8, winRate: 62.5 },
+    { champion: "Rakan", games: 7, winRate: 71.4 },
+    { champion: "Alistar", games: 6, winRate: 66.7 },
+    { champion: "Renata Glasc", games: 5, winRate: 60.0 },
+  ],
+};
+
+// Generic enemy player pool data
+const ENEMY_PLAYER_POOLS: Record<
+  string,
+  { champion: string; games: number; winRate: number }[]
+> = {
+  TOP: [
+    { champion: "K'Sante", games: 8, winRate: 65.0 },
+    { champion: "Jax", games: 7, winRate: 60.0 },
+    { champion: "Aatrox", games: 6, winRate: 55.0 },
+  ],
+  JGL: [
+    { champion: "Viego", games: 9, winRate: 62.0 },
+    { champion: "Lee Sin", games: 7, winRate: 58.0 },
+    { champion: "Jarvan IV", games: 5, winRate: 55.0 },
+  ],
+  MID: [
+    { champion: "Azir", games: 10, winRate: 68.0 },
+    { champion: "Syndra", games: 8, winRate: 60.0 },
+    { champion: "LeBlanc", games: 6, winRate: 55.0 },
+  ],
+  ADC: [
+    { champion: "Aphelios", games: 9, winRate: 65.0 },
+    { champion: "Jinx", games: 8, winRate: 60.0 },
+    { champion: "Kai'Sa", games: 6, winRate: 58.0 },
+  ],
+  SUP: [
+    { champion: "Thresh", games: 10, winRate: 62.0 },
+    { champion: "Nautilus", games: 7, winRate: 58.0 },
+    { champion: "Rakan", games: 5, winRate: 55.0 },
+  ],
+};
 
 interface DraftState {
   // Team states
@@ -88,10 +163,14 @@ interface DraftStore extends DraftState {
   getFilteredChampions: () => Champion[];
 }
 
-const createEmptyTeam = (name: string): TeamDraft => ({
+const createEmptyTeam = (
+  name: string,
+  players: DraftPlayer[] = [],
+): TeamDraft => ({
   name,
   bans: [null, null, null, null, null],
   picks: [null, null, null, null, null],
+  players,
 });
 
 const initialState: DraftState = {
@@ -127,16 +206,34 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     const c9TeamName = "Cloud9";
     const enemyTeamName = enemyTeam.name;
 
+    // Convert C9 players to draft players with champion pools
+    const c9DraftPlayers: DraftPlayer[] = c9Players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      role: player.role as Role,
+      championPool: C9_PLAYER_POOLS[player.id] || [],
+    }));
+
+    // Convert enemy players to draft players with generic champion pools
+    const enemyDraftPlayers: DraftPlayer[] = enemyTeam.players.map(
+      (player) => ({
+        id: player.id,
+        name: player.name,
+        role: player.role as Role,
+        championPool: ENEMY_PLAYER_POOLS[player.role] || [],
+      }),
+    );
+
     if (c9Side === "blue") {
       set({
-        blueTeam: createEmptyTeam(c9TeamName),
-        redTeam: createEmptyTeam(enemyTeamName),
+        blueTeam: createEmptyTeam(c9TeamName, c9DraftPlayers),
+        redTeam: createEmptyTeam(enemyTeamName, enemyDraftPlayers),
         myTeam: "blue",
       });
     } else {
       set({
-        blueTeam: createEmptyTeam(enemyTeamName),
-        redTeam: createEmptyTeam(c9TeamName),
+        blueTeam: createEmptyTeam(enemyTeamName, enemyDraftPlayers),
+        redTeam: createEmptyTeam(c9TeamName, c9DraftPlayers),
         myTeam: "red",
       });
     }

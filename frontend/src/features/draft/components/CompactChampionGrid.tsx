@@ -1,5 +1,4 @@
 import type { Role } from "../types/draft.types";
-import { ChampionCard } from "./ChampionCard";
 import { useDraftStore } from "../store/draftStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { DraftGateway } from './draft.gateway';
-import { DraftService } from './draft.service';
-import { AnalyticsService } from './analytics.service';
+import { OpenAIService } from './openai.service';
+import { DraftController } from './draft.controller';
 
 @Module({
-  providers: [DraftGateway, DraftService, AnalyticsService],
-  exports: [DraftService, AnalyticsService],
+  controllers: [DraftController],
+  providers: [DraftGateway, OpenAIService],
+  exports: [OpenAIService],
 })
 export class DraftModule {}

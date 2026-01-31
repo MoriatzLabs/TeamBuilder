@@ -20,10 +20,24 @@ export interface DraftAction {
   timestamp: number;
 }
 
+export interface ChampionPoolEntry {
+  champion: string;
+  games: number;
+  winRate: number;
+}
+
+export interface DraftPlayer {
+  id: string;
+  name: string;
+  role: Role;
+  championPool: ChampionPoolEntry[];
+}
+
 export interface TeamDraft {
   name: string;
   bans: (Champion | null)[];
   picks: (Champion | null)[];
+  players: DraftPlayer[];
 }
 
 export interface DraftStep {

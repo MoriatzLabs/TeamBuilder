@@ -66,7 +66,10 @@ export function useDraftSocket(
 
   useEffect(() => {
     // Only connect once
-    if (socketRef.current?.connected || socketRef.current?.connecting) {
+    if (
+      socketRef.current?.connected ||
+      (socketRef.current as any)?.connecting
+    ) {
       return;
     }
 

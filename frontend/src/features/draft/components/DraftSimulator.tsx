@@ -9,7 +9,7 @@ import { TeamAnalysisCard } from "./TeamAnalysisCard";
 import { DraftHeader } from "./DraftHeader";
 import { DraftControls } from "./DraftControls";
 import type { Champion } from "../types/draft.types";
-import type { Recommendation, TeamAnalysis } from "../types/analytics.types";
+import type { TeamAnalysis } from "../types/analytics.types";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,406 +26,14 @@ async function fetchChampions(): Promise<ChampionsResponse> {
   return response.json();
 }
 
-// Mock recommendations generator based on draft state
-function generateMockRecommendations(
-  currentStep: { team: "blue" | "red"; type: "ban" | "pick" } | null,
-  blueTeam: any,
-  redTeam: any,
-): Recommendation[] {
-  if (!currentStep) return [];
-
-  const isBanPhase = currentStep.type === "ban";
-  const isBlueTeam = currentStep.team === "blue";
-
-  // Get already banned/picked champion IDs
-  const bannedIds = [
-    ...blueTeam.bans.filter(Boolean).map((c: any) => c.id),
-    ...redTeam.bans.filter(Boolean).map((c: any) => c.id),
-  ];
-  const pickedIds = [
-    ...blueTeam.picks.filter(Boolean).map((c: any) => c.id),
-    ...redTeam.picks.filter(Boolean).map((c: any) => c.id),
-  ];
-  const unavailable = new Set([...bannedIds, ...pickedIds]);
-
-  // Determine which role we're picking for (based on pick count)
-  const myPicks = isBlueTeam ? blueTeam.picks : redTeam.picks;
-  const pickCount = myPicks.filter(Boolean).length;
-  const roles = ["TOP", "JGL", "MID", "ADC", "SUP"];
-  const currentRole = roles[pickCount] || "TOP";
-
-  if (isBanPhase) {
-    // Ban recommendations
-    const banRecommendations: Recommendation[] = [
-      {
-        champion: {
-          id: "ksante",
-          name: "K'Sante",
-          roles: ["TOP"],
-          image:
-            "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/KSante.png",
-        },
-        score: 95,
-        type: "deny",
-        reasons: [
-          "Enemy top laner's signature pick",
-          "High priority in pro play",
-        ],
-        playerAffinity: 45,
-      },
-      {
-        champion: {
-          id: "viego",
-          name: "Viego",
-          roles: ["JGL"],
-          image:
-            "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Viego.png",
-        },
-        score: 88,
-        type: "meta",
-        reasons: ["Strong jungle meta pick", "High carry potential"],
-      },
-      {
-        champion: {
-          id: "azir",
-          name: "Azir",
-          roles: ["MID"],
-          image:
-            "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Azir.png",
-        },
-        score: 85,
-        type: "deny",
-        reasons: ["Enemy mid's comfort pick", "Scales extremely well"],
-        playerAffinity: 35,
-      },
-      {
-        champion: {
-          id: "jinx",
-          name: "Jinx",
-          roles: ["ADC"],
-          image:
-            "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Jinx.png",
-        },
-        score: 82,
-        type: "meta",
-        reasons: ["Hyper carry threat", "Strong in current meta"],
-      },
-      {
-        champion: {
-          id: "thresh",
-          name: "Thresh",
-          roles: ["SUP"],
-          image:
-            "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Thresh.png",
-        },
-        score: 78,
-        type: "deny",
-        reasons: ["Playmaking support", "Enemy support main"],
-        playerAffinity: 40,
-      },
-      {
-        champion: {
-          id: "leesin",
-          name: "Lee Sin",
-          roles: ["JGL"],
-          image:
-            "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/LeeSin.png",
-        },
-        score: 75,
-        type: "deny",
-        reasons: ["Blaber's signature champion", "Early game pressure"],
-        playerAffinity: 52,
-      },
-    ];
-
-    return banRecommendations.filter((r) => !unavailable.has(r.champion.id));
-  } else {
-    // Pick recommendations based on current role
-    const pickRecommendations: Record<string, Recommendation[]> = {
-      TOP: [
-        {
-          champion: {
-            id: "ksante",
-            name: "K'Sante",
-            roles: ["TOP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/KSante.png",
-          },
-          score: 92,
-          type: "comfort",
-          reasons: ["Thanatos' best champion", "62% win rate over 45 games"],
-          playerAffinity: 45,
-        },
-        {
-          champion: {
-            id: "jax",
-            name: "Jax",
-            roles: ["TOP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Jax.png",
-          },
-          score: 85,
-          type: "comfort",
-          reasons: ["Strong scaling pick", "Good into enemy comp"],
-          playerAffinity: 32,
-        },
-        {
-          champion: {
-            id: "aatrox",
-            name: "Aatrox",
-            roles: ["TOP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Aatrox.png",
-          },
-          score: 80,
-          type: "meta",
-          reasons: ["Lane dominant", "Strong teamfighting"],
-        },
-        {
-          champion: {
-            id: "gnar",
-            name: "Gnar",
-            roles: ["TOP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Gnar.png",
-          },
-          score: 75,
-          type: "counter",
-          reasons: ["Counters enemy top pick", "Good engage for team"],
-          counterTo: "Renekton",
-        },
-      ],
-      JGL: [
-        {
-          champion: {
-            id: "leesin",
-            name: "Lee Sin",
-            roles: ["JGL"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/LeeSin.png",
-          },
-          score: 94,
-          type: "comfort",
-          reasons: ["Blaber's signature pick", "60% WR over 52 games"],
-          playerAffinity: 52,
-        },
-        {
-          champion: {
-            id: "reksai",
-            name: "Rek'Sai",
-            roles: ["JGL"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/RekSai.png",
-          },
-          score: 88,
-          type: "comfort",
-          reasons: ["Early game pressure", "63% win rate"],
-          playerAffinity: 38,
-        },
-        {
-          champion: {
-            id: "viego",
-            name: "Viego",
-            roles: ["JGL"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Viego.png",
-          },
-          score: 82,
-          type: "meta",
-          reasons: ["Strong carry potential", "Resets in teamfights"],
-        },
-        {
-          champion: {
-            id: "jarvaniv",
-            name: "Jarvan IV",
-            roles: ["JGL"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/JarvanIV.png",
-          },
-          score: 78,
-          type: "synergy",
-          reasons: ["Great with Orianna/Syndra", "Strong engage"],
-          synergyWith: "Orianna",
-        },
-      ],
-      MID: [
-        {
-          champion: {
-            id: "syndra",
-            name: "Syndra",
-            roles: ["MID"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Syndra.png",
-          },
-          score: 93,
-          type: "comfort",
-          reasons: ["Apa's best champion", "65% WR over 40 games"],
-          playerAffinity: 40,
-        },
-        {
-          champion: {
-            id: "orianna",
-            name: "Orianna",
-            roles: ["MID"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Orianna.png",
-          },
-          score: 87,
-          type: "synergy",
-          reasons: ["Great with J4/engage comps", "Safe blind pick"],
-          synergyWith: "Jarvan IV",
-        },
-        {
-          champion: {
-            id: "azir",
-            name: "Azir",
-            roles: ["MID"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Azir.png",
-          },
-          score: 82,
-          type: "comfort",
-          reasons: ["Scaling insurance", "60% win rate"],
-          playerAffinity: 35,
-        },
-        {
-          champion: {
-            id: "ahri",
-            name: "Ahri",
-            roles: ["MID"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Ahri.png",
-          },
-          score: 76,
-          type: "counter",
-          reasons: ["Counters enemy mid", "Safe laning"],
-          counterTo: "LeBlanc",
-        },
-      ],
-      ADC: [
-        {
-          champion: {
-            id: "jinx",
-            name: "Jinx",
-            roles: ["ADC"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Jinx.png",
-          },
-          score: 95,
-          type: "comfort",
-          reasons: ["Berserker's signature", "67% WR hyper carry"],
-          playerAffinity: 48,
-        },
-        {
-          champion: {
-            id: "aphelios",
-            name: "Aphelios",
-            roles: ["ADC"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Aphelios.png",
-          },
-          score: 90,
-          type: "comfort",
-          reasons: ["High skill ceiling carry", "60% win rate"],
-          playerAffinity: 42,
-        },
-        {
-          champion: {
-            id: "kaisa",
-            name: "Kai'Sa",
-            roles: ["ADC"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Kaisa.png",
-          },
-          score: 84,
-          type: "synergy",
-          reasons: ["Great with Nautilus", "Flexible build paths"],
-          synergyWith: "Nautilus",
-        },
-        {
-          champion: {
-            id: "zeri",
-            name: "Zeri",
-            roles: ["ADC"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Zeri.png",
-          },
-          score: 78,
-          type: "meta",
-          reasons: ["Mobile carry", "Strong with enchanter"],
-        },
-      ],
-      SUP: [
-        {
-          champion: {
-            id: "nautilus",
-            name: "Nautilus",
-            roles: ["SUP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Nautilus.png",
-          },
-          score: 91,
-          type: "comfort",
-          reasons: ["Vulcan's go-to engage", "62% WR over 45 games"],
-          playerAffinity: 45,
-        },
-        {
-          champion: {
-            id: "thresh",
-            name: "Thresh",
-            roles: ["SUP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Thresh.png",
-          },
-          score: 88,
-          type: "comfort",
-          reasons: ["Playmaking potential", "65% win rate"],
-          playerAffinity: 40,
-        },
-        {
-          champion: {
-            id: "rakan",
-            name: "Rakan",
-            roles: ["SUP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Rakan.png",
-          },
-          score: 82,
-          type: "synergy",
-          reasons: ["Great engage with team", "Pairs well with Xayah"],
-          synergyWith: "Xayah",
-        },
-        {
-          champion: {
-            id: "lulu",
-            name: "Lulu",
-            roles: ["SUP"],
-            image:
-              "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/Lulu.png",
-          },
-          score: 76,
-          type: "synergy",
-          reasons: ["Protects hyper carry", "Great with Jinx/Kog"],
-          synergyWith: "Jinx",
-        },
-      ],
-    };
-
-    const roleRecs =
-      pickRecommendations[currentRole] || pickRecommendations.TOP;
-    return roleRecs.filter((r) => !unavailable.has(r.champion.id));
-  }
-}
-
-// Mock team analysis generator
-function generateMockTeamAnalysis(
+// Team analysis generator (kept local for team analysis cards)
+function generateTeamAnalysis(
   picks: (Champion | null)[],
   team: "blue" | "red",
 ): TeamAnalysis | null {
   const validPicks = picks.filter(Boolean) as Champion[];
   if (validPicks.length === 0) return null;
 
-  // Simple mock analysis
   const hasEngage = validPicks.some((p) =>
     ["nautilus", "thresh", "rakan", "jarvaniv", "ksante"].includes(
       p.id.toLowerCase(),
@@ -483,7 +91,6 @@ export function DraftSimulator() {
     selectChampion,
     selectedChampion,
     isComplete,
-    setRecommendations,
     setTeamAnalysis,
     setConnectionState,
     initializeTeams,
@@ -499,19 +106,12 @@ export function DraftSimulator() {
     }
   }, [c9Side, c9Players, enemyTeam, initializeTeams, setConnectionState]);
 
-  // Update recommendations when draft state changes
+  // Update team analysis when picks change (recommendations handled by API in RecommendationPanel)
   useEffect(() => {
-    const recommendations = generateMockRecommendations(
-      currentStep,
-      blueTeam,
-      redTeam,
-    );
-    setRecommendations(recommendations);
-
-    const blueAnalysis = generateMockTeamAnalysis(blueTeam.picks, "blue");
-    const redAnalysis = generateMockTeamAnalysis(redTeam.picks, "red");
+    const blueAnalysis = generateTeamAnalysis(blueTeam.picks, "blue");
+    const redAnalysis = generateTeamAnalysis(redTeam.picks, "red");
     setTeamAnalysis(blueAnalysis, redAnalysis);
-  }, [currentStep, blueTeam, redTeam, setRecommendations, setTeamAnalysis]);
+  }, [blueTeam.picks, redTeam.picks, setTeamAnalysis]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["champions"],
@@ -596,7 +196,7 @@ export function DraftSimulator() {
       {/* Header with title */}
       <DraftHeader />
 
-      {/* Main content area - New layout */}
+      {/* Main content area */}
       <div className="flex-1 flex min-h-0 p-4 gap-4">
         {/* Blue Team Panel */}
         <div className="w-[300px] flex-shrink-0 h-full">

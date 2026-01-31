@@ -89,12 +89,26 @@ function getChampionImageUrl(championName: string): string {
     jarvaniv: "JarvanIV",
     leesin: "LeeSin",
     reksai: "RekSai",
+    smolder: "Smolder",
+    vi: "Vi",
+    sejuani: "Sejuani",
+    xinzhao: "XinZhao",
+    taliyah: "Taliyah",
+    viktor: "Viktor",
+    senna: "Senna",
+    xayah: "Xayah",
+    rell: "Rell",
+    sylas: "Sylas",
+    bard: "Bard",
+    jax: "Jax",
+    sion: "Sion",
+    poppy: "Poppy",
   };
 
   const key =
     specialCases[formatted] ||
     formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${key}.png`;
+  return `/images/champions/${key}.png`;
 }
 
 async function fetchC9Players(): Promise<C9Response> {
@@ -177,7 +191,6 @@ export function PlayerDashboard() {
     );
   }
 
-  const roleConfig = selectedPlayer ? ROLE_CONFIG[selectedPlayer.role] : null;
   const championPool = championPoolData?.championPool || [];
 
   return (

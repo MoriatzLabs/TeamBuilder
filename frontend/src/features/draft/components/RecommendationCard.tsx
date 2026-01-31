@@ -8,6 +8,8 @@ interface RecommendationCardProps {
   rank: number;
 }
 
+import { Zap } from "lucide-react";
+
 const TYPE_CONFIG = {
   comfort: {
     icon: Target,
@@ -43,6 +45,13 @@ const TYPE_CONFIG = {
     color: "text-red-400",
     bgColor: "bg-red-400/10",
     borderColor: "border-red-400/30",
+  },
+  flex: {
+    icon: Zap,
+    label: "Flex",
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-400/10",
+    borderColor: "border-cyan-400/30",
   },
 };
 
