@@ -47,6 +47,8 @@ junit.xml
 # Cache
 .eslintcache
 
+samples
+
 # Generated documentation and assets
 Grid_Knowledge/
 Screenshots/
