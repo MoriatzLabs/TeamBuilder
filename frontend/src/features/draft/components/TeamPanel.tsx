@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { TeamDraft, Team, Champion } from "../types/draft.types";
 import { useDraftStore } from "../store/draftStore";
+import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils";
 
 interface TeamPanelProps {
@@ -47,6 +48,16 @@ function BanSlot({
   index: number;
 }) {
   const [imageError, setImageError] = useState(false);
+  const selectedChampion = useDraftStore((state) => state.selectedChampion);
+  
+  const displayChampion = champion || (isActive && selectedChampion ? selectedChampion : null);
+  const isPreview = !champion && isActive && selectedChampion !== null;
+
+  useEffect(() => {
+    if (displayChampion) {
+      setImageError(false);
+    }
+  }, [displayChampion?.id]);
 
   const getInitials = (name: string) =>
     name
@@ -60,25 +71,31 @@ function BanSlot({
     <div
       className={cn(
         "relative w-14 h-14 rounded-full overflow-hidden transition-all",
-        champion
+        displayChampion
           ? "ring-2 ring-red-400/50"
           : isActive
             ? "ring-2 ring-amber-400 bg-muted/50"
             : "bg-muted/50 border border-border-subtle",
       )}
     >
-      {champion ? (
+      {displayChampion ? (
         <>
           {!imageError ? (
             <img
-              src={champion.image}
-              alt={champion.name}
-              className="w-full h-full object-cover grayscale opacity-60"
+              src={displayChampion.image}
+              alt={displayChampion.name}
+              className={cn(
+                "w-full h-full object-cover grayscale opacity-60",
+                isPreview && "opacity-40"
+              )}
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted text-xs font-medium text-muted-foreground">
-              {getInitials(champion.name)}
+            <div className={cn(
+              "w-full h-full flex items-center justify-center bg-muted text-xs font-medium text-muted-foreground",
+              isPreview && "opacity-70"
+            )}>
+              {getInitials(displayChampion.name)}
             </div>
           )}
           <div className="absolute inset-0 flex items-center justify-center">
@@ -116,6 +133,16 @@ function PickSlot({
 }) {
   const [imageError, setImageError] = useState(false);
   const [playerImageError, setPlayerImageError] = useState(false);
+  const selectedChampion = useDraftStore((state) => state.selectedChampion);
+  
+  const displayChampion = champion || (isActive && selectedChampion ? selectedChampion : null);
+  const isPreview = !champion && isActive && selectedChampion !== null;
+
+  useEffect(() => {
+    if (displayChampion) {
+      setImageError(false);
+    }
+  }, [displayChampion?.id]);
 
   const getInitials = (name: string) =>
     name
@@ -139,25 +166,31 @@ function PickSlot({
       <div
         className={cn(
           "w-16 h-16 rounded-full overflow-hidden flex-shrink-0 transition-all",
-          champion
+          displayChampion
             ? team === "blue"
               ? "ring-2 ring-blue-team"
               : "ring-2 ring-red-team"
             : "bg-muted/50 border border-border-subtle",
-          isActive && !champion && "ring-2 ring-amber-400",
+          isActive && !displayChampion && "ring-2 ring-amber-400",
         )}
       >
-        {champion ? (
+        {displayChampion ? (
           !imageError ? (
             <img
-              src={champion.image}
-              alt={champion.name}
-              className="w-full h-full object-cover"
+              src={displayChampion.image}
+              alt={displayChampion.name}
+              className={cn(
+                "w-full h-full object-cover",
+                isPreview && "opacity-70"
+              )}
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted text-sm font-semibold">
-              {getInitials(champion.name)}
+            <div className={cn(
+              "w-full h-full flex items-center justify-center bg-muted text-sm font-semibold",
+              isPreview && "opacity-70"
+            )}>
+              {getInitials(displayChampion.name)}
             </div>
           )
         ) : (
@@ -211,10 +244,10 @@ function PickSlot({
           <span
             className={cn(
               "text-base font-semibold truncate max-w-full",
-              champion ? "text-foreground" : "text-muted-foreground/60",
+              displayChampion ? "text-foreground" : "text-muted-foreground/60",
             )}
           >
-            {champion ? champion.name : "Selecting..."}
+            {displayChampion ? displayChampion.name : "Selecting..."}
           </span>
         </div>
       </div>
@@ -235,14 +268,27 @@ export function TeamPanel({ team, teamData, isActive }: TeamPanelProps) {
 
   const activeSlot = getActiveSlotInfo();
 
-  // Player roster for C9
-  const playerRoster = [
-    { name: "Thanatos", image: "/images/C9.jpg" },
-    { name: "Blaber", image: "/images/C9.jpg" },
-    { name: "Apa", image: "/images/C9.jpg" },
-    { name: "Berserker", image: "/images/C9.jpg" },
-    { name: "Vulcan", image: "/images/C9.jpg" },
-  ];
+  const { c9Players, enemyTeam } = useAppStore();
+
+  const isC9Team = teamData.name === "Cloud9";
+  const players = isC9Team
+    ? c9Players || []
+    : enemyTeam?.players || [];
+
+  const playerRoster = players.map((player) => ({
+    name: player.name,
+    image: player.image,
+  }));
+
+  if (playerRoster.length === 0) {
+    playerRoster.push(
+      { name: "Player 1", image: "/images/C9.jpg" },
+      { name: "Player 2", image: "/images/C9.jpg" },
+      { name: "Player 3", image: "/images/C9.jpg" },
+      { name: "Player 4", image: "/images/C9.jpg" },
+      { name: "Player 5", image: "/images/C9.jpg" },
+    );
+  }
 
   return (
     <div

@@ -6,6 +6,12 @@ import type {
   TeamDraft,
   DraftStep,
 } from "../types/draft.types";
+import type {
+  Recommendation,
+  TeamAnalysis,
+  Team,
+} from "../types/analytics.types";
+import type { Player, EnemyTeam } from "@/store/appStore";
 import { getCurrentDraftStep, isDraftComplete } from "../utils/draftSequence";
 
 interface DraftState {
@@ -30,11 +36,24 @@ interface DraftState {
   // UI state
   searchQuery: string;
   roleFilter: Role | null;
+
+  // Analytics state
+  recommendations: Recommendation[];
+  blueTeamAnalysis: TeamAnalysis | null;
+  redTeamAnalysis: TeamAnalysis | null;
+  isConnected: boolean;
+  roomId: string | null;
+  myTeam: Team;
 }
 
 interface DraftStore extends DraftState {
   // Initialization
   setAvailableChampions: (champions: Champion[]) => void;
+  initializeTeams: (
+    c9Side: "blue" | "red",
+    c9Players: Player[],
+    enemyTeam: EnemyTeam,
+  ) => void;
 
   // Selection
   selectChampion: (champion: Champion) => void;
@@ -48,6 +67,18 @@ interface DraftStore extends DraftState {
   // UI
   setSearchQuery: (query: string) => void;
   setRoleFilter: (role: Role | null) => void;
+
+  // Analytics
+  setRecommendations: (recommendations: Recommendation[]) => void;
+  setTeamAnalysis: (
+    blue: TeamAnalysis | null,
+    red: TeamAnalysis | null,
+  ) => void;
+  setConnectionState: (
+    isConnected: boolean,
+    roomId?: string | null,
+    team?: Team,
+  ) => void;
 
   // Computed helpers
   getCurrentStep: () => DraftStep | null;
@@ -74,6 +105,12 @@ const initialState: DraftState = {
   actions: [],
   searchQuery: "",
   roleFilter: null,
+  recommendations: [],
+  blueTeamAnalysis: null,
+  redTeamAnalysis: null,
+  isConnected: false,
+  roomId: null,
+  myTeam: "blue",
 };
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
@@ -81,6 +118,29 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   setAvailableChampions: (champions: Champion[]) =>
     set({ availableChampions: champions }),
+
+  initializeTeams: (
+    c9Side: "blue" | "red",
+    c9Players: Player[],
+    enemyTeam: EnemyTeam,
+  ) => {
+    const c9TeamName = "Cloud9";
+    const enemyTeamName = enemyTeam.name;
+
+    if (c9Side === "blue") {
+      set({
+        blueTeam: createEmptyTeam(c9TeamName),
+        redTeam: createEmptyTeam(enemyTeamName),
+        myTeam: "blue",
+      });
+    } else {
+      set({
+        blueTeam: createEmptyTeam(enemyTeamName),
+        redTeam: createEmptyTeam(c9TeamName),
+        myTeam: "red",
+      });
+    }
+  },
 
   selectChampion: (champion: Champion) => {
     const state = get();
@@ -178,6 +238,24 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   setSearchQuery: (query: string) => set({ searchQuery: query }),
 
   setRoleFilter: (role: Role | null) => set({ roleFilter: role }),
+
+  // Analytics
+  setRecommendations: (recommendations: Recommendation[]) =>
+    set({ recommendations }),
+
+  setTeamAnalysis: (blue: TeamAnalysis | null, red: TeamAnalysis | null) =>
+    set({ blueTeamAnalysis: blue, redTeamAnalysis: red }),
+
+  setConnectionState: (
+    isConnected: boolean,
+    roomId?: string | null,
+    team?: Team,
+  ) =>
+    set({
+      isConnected,
+      ...(roomId !== undefined && { roomId }),
+      ...(team !== undefined && { myTeam: team }),
+    }),
 
   // Computed helpers
   getCurrentStep: () => {

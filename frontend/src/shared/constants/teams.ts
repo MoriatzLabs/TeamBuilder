@@ -1,0 +1,95 @@
+import type { EnemyTeam } from "@/store/appStore";
+
+export const ENEMY_TEAMS: EnemyTeam[] = [
+  {
+    id: "dig",
+    name: "Dignitas",
+    abbreviation: "DIG",
+    logo: "/images/Dignitas.jpg",
+    players: [
+      { id: "dig-top", name: "Photon", realName: "Photon", role: "TOP", image: "/images/Dignitas.jpg", nationality: "US" },
+      { id: "dig-jgl", name: "eXyu", realName: "eXyu", role: "JGL", image: "/images/Dignitas.jpg", nationality: "US" },
+      { id: "dig-mid", name: "Palafox", realName: "Palafox", role: "MID", image: "/images/Dignitas.jpg", nationality: "US" },
+      { id: "dig-adc", name: "FBI", realName: "FBI", role: "ADC", image: "/images/Dignitas.jpg", nationality: "AU" },
+      { id: "dig-sup", name: "IgNar", realName: "IgNar", role: "SUP", image: "/images/Dignitas.jpg", nationality: "KR" },
+    ],
+  },
+  {
+    id: "disguised",
+    name: "Disguised",
+    abbreviation: "DSG",
+    logo: "/images/Disguised.jpg",
+    players: [
+      { id: "dsg-top", name: "Castle", realName: "Castle", role: "TOP", image: "/images/Disguised.jpg", nationality: "US" },
+      { id: "dsg-jgl", name: "Kisno", realName: "Kisno", role: "JGL", image: "/images/Disguised.jpg", nationality: "US" },
+      { id: "dsg-mid", name: "Callme", realName: "Callme", role: "MID", image: "/images/Disguised.jpg", nationality: "US" },
+      { id: "dsg-adc", name: "Sajed", realName: "Sajed", role: "ADC", image: "/images/Disguised.jpg", nationality: "US" },
+      { id: "dsg-sup", name: "Lyonz", realName: "Lyonz", role: "SUP", image: "/images/Disguised.jpg", nationality: "US" },
+    ],
+  },
+  {
+    id: "fly",
+    name: "FlyQuest",
+    abbreviation: "FLY",
+    logo: "/images/FlyQuest.jpg",
+    players: [
+      { id: "fly-top", name: "Gakgos", realName: "Gakgos", role: "TOP", image: "/images/FlyQuest.jpg", nationality: "US" },
+      { id: "fly-jgl", name: "Gryffin", realName: "Gryffin", role: "JGL", image: "/images/FlyQuest.jpg", nationality: "US" },
+      { id: "fly-mid", name: "Quad", realName: "Quad", role: "MID", image: "/images/FlyQuest.jpg", nationality: "US" },
+      { id: "fly-adc", name: "Massu", realName: "Massu", role: "ADC", image: "/images/FlyQuest.jpg", nationality: "KR" },
+      { id: "fly-sup", name: "Cryogen", realName: "Cryogen", role: "SUP", image: "/images/FlyQuest.jpg", nationality: "US" },
+    ],
+  },
+  {
+    id: "lyon",
+    name: "LYON",
+    abbreviation: "LYON",
+    logo: "/images/Lyon.jpg",
+    players: [
+      { id: "lyon-top", name: "Dhokla", realName: "Dhokla", role: "TOP", image: "/images/Lyon.jpg", nationality: "US" },
+      { id: "lyon-jgl", name: "Inspired", realName: "Inspired", role: "JGL", image: "/images/Lyon.jpg", nationality: "PL" },
+      { id: "lyon-mid", name: "Saint", realName: "Saint", role: "MID", image: "/images/Lyon.jpg", nationality: "US" },
+      { id: "lyon-adc", name: "Berserker", realName: "Berserker", role: "ADC", image: "/images/Lyon.jpg", nationality: "KR" },
+      { id: "lyon-sup", name: "Isles", realName: "Isles", role: "SUP", image: "/images/Lyon.jpg", nationality: "US" },
+    ],
+  },
+  {
+    id: "sentinels",
+    name: "Sentinels",
+    abbreviation: "SEN",
+    logo: "/images/Sentinels.png",
+    players: [
+      { id: "sen-top", name: "Impact", realName: "Impact", role: "TOP", image: "/images/Sentinels.png", nationality: "KR" },
+      { id: "sen-jgl", name: "HamBak", realName: "HamBak", role: "JGL", image: "/images/Sentinels.png", nationality: "KR" },
+      { id: "sen-mid", name: "DARKWINGS", realName: "DARKWINGS", role: "MID", image: "/images/Sentinels.png", nationality: "US" },
+      { id: "sen-adc", name: "Rahel", realName: "Rahel", role: "ADC", image: "/images/Sentinels.png", nationality: "US" },
+      { id: "sen-sup", name: "Huhi", realName: "Huhi", role: "SUP", image: "/images/Sentinels.png", nationality: "KR" },
+    ],
+  },
+  {
+    id: "shopify",
+    name: "Shopify Rebellion",
+    abbreviation: "SR",
+    logo: "/images/Shopify.png",
+    players: [
+      { id: "sr-top", name: "Fudge", realName: "Fudge", role: "TOP", image: "/images/Shopify.png", nationality: "AU" },
+      { id: "sr-jgl", name: "Contractz", realName: "Contractz", role: "JGL", image: "/images/Shopify.png", nationality: "US" },
+      { id: "sr-mid", name: "Zinie", realName: "Zinie", role: "MID", image: "/images/Shopify.png", nationality: "US" },
+      { id: "sr-adc", name: "Bvoy", realName: "Bvoy", role: "ADC", image: "/images/Shopify.png", nationality: "US" },
+      { id: "sr-sup", name: "Ceos", realName: "Ceos", role: "SUP", image: "/images/Shopify.png", nationality: "US" },
+    ],
+  },
+  {
+    id: "tl",
+    name: "Team Liquid",
+    abbreviation: "TL",
+    logo: "/images/TL.jpg",
+    players: [
+      { id: "tl-top", name: "Morgan", realName: "Morgan", role: "TOP", image: "/images/TL.jpg", nationality: "KR" },
+      { id: "tl-jgl", name: "Josedeodo", realName: "Josedeodo", role: "JGL", image: "/images/TL.jpg", nationality: "AR" },
+      { id: "tl-mid", name: "Quid", realName: "Quid", role: "MID", image: "/images/TL.jpg", nationality: "KR" },
+      { id: "tl-adc", name: "Yeon", realName: "Yeon", role: "ADC", image: "/images/TL.jpg", nationality: "US" },
+      { id: "tl-sup", name: "CoreJJ", realName: "CoreJJ", role: "SUP", image: "/images/TL.jpg", nationality: "KR" },
+    ],
+  },
+];

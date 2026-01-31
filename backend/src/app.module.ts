@@ -6,6 +6,7 @@ import { GridModule } from './grid/grid.module';
 import { CacheModule } from './cache/cache.module';
 import { PlayersModule } from './players/players.module';
 import { ScoutingModule } from './scouting/scouting.module';
+import { DraftModule } from './draft/draft.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ScoutingModule } from './scouting/scouting.module';
     CacheModule,
     PlayersModule,
     ScoutingModule,
+    DraftModule,
   ],
   controllers: [AppController],
   providers: [AppService],
