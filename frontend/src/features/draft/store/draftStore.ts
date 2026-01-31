@@ -11,6 +11,7 @@ import type {
   TeamAnalysis,
   Team,
 } from "../types/analytics.types";
+import type { Player, EnemyTeam } from "@/store/appStore";
 import { getCurrentDraftStep, isDraftComplete } from "../utils/draftSequence";
 
 interface DraftState {
@@ -48,6 +49,11 @@ interface DraftState {
 interface DraftStore extends DraftState {
   // Initialization
   setAvailableChampions: (champions: Champion[]) => void;
+  initializeTeams: (
+    c9Side: "blue" | "red",
+    c9Players: Player[],
+    enemyTeam: EnemyTeam,
+  ) => void;
 
   // Selection
   selectChampion: (champion: Champion) => void;
@@ -112,6 +118,29 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   setAvailableChampions: (champions: Champion[]) =>
     set({ availableChampions: champions }),
+
+  initializeTeams: (
+    c9Side: "blue" | "red",
+    c9Players: Player[],
+    enemyTeam: EnemyTeam,
+  ) => {
+    const c9TeamName = "Cloud9";
+    const enemyTeamName = enemyTeam.name;
+
+    if (c9Side === "blue") {
+      set({
+        blueTeam: createEmptyTeam(c9TeamName),
+        redTeam: createEmptyTeam(enemyTeamName),
+        myTeam: "blue",
+      });
+    } else {
+      set({
+        blueTeam: createEmptyTeam(enemyTeamName),
+        redTeam: createEmptyTeam(c9TeamName),
+        myTeam: "red",
+      });
+    }
+  },
 
   selectChampion: (champion: Champion) => {
     const state = get();

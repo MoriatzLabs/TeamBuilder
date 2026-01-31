@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { TeamDraft, Team, Champion } from "../types/draft.types";
 import { useDraftStore } from "../store/draftStore";
+import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils";
 
 interface TeamPanelProps {
@@ -267,14 +268,27 @@ export function TeamPanel({ team, teamData, isActive }: TeamPanelProps) {
 
   const activeSlot = getActiveSlotInfo();
 
-  // Player roster for C9
-  const playerRoster = [
-    { name: "Thanatos", image: "/images/C9.jpg" },
-    { name: "Blaber", image: "/images/C9.jpg" },
-    { name: "Apa", image: "/images/C9.jpg" },
-    { name: "Berserker", image: "/images/C9.jpg" },
-    { name: "Vulcan", image: "/images/C9.jpg" },
-  ];
+  const { c9Players, enemyTeam } = useAppStore();
+
+  const isC9Team = teamData.name === "Cloud9";
+  const players = isC9Team
+    ? c9Players || []
+    : enemyTeam?.players || [];
+
+  const playerRoster = players.map((player) => ({
+    name: player.name,
+    image: player.image,
+  }));
+
+  if (playerRoster.length === 0) {
+    playerRoster.push(
+      { name: "Player 1", image: "/images/C9.jpg" },
+      { name: "Player 2", image: "/images/C9.jpg" },
+      { name: "Player 3", image: "/images/C9.jpg" },
+      { name: "Player 4", image: "/images/C9.jpg" },
+      { name: "Player 5", image: "/images/C9.jpg" },
+    );
+  }
 
   return (
     <div

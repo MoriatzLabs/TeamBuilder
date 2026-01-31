@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useDraftStore } from "../store/draftStore";
+import { useAppStore } from "@/store/appStore";
 import { TeamPanel } from "./TeamPanel";
 import { CompactChampionGrid } from "./CompactChampionGrid";
 import { RecommendationPanel } from "./RecommendationPanel";
@@ -485,14 +486,18 @@ export function DraftSimulator() {
     setRecommendations,
     setTeamAnalysis,
     setConnectionState,
+    initializeTeams,
   } = useDraftStore();
 
+  const { c9Side, c9Players, enemyTeam } = useAppStore();
   const currentStep = useDraftStore((state) => state.getCurrentStep());
 
-  // Set as "connected" with mock data
   useEffect(() => {
-    setConnectionState(true, "mock-room", "blue");
-  }, [setConnectionState]);
+    if (c9Side && c9Players && enemyTeam) {
+      initializeTeams(c9Side, c9Players, enemyTeam);
+      setConnectionState(true, "mock-room", c9Side);
+    }
+  }, [c9Side, c9Players, enemyTeam, initializeTeams, setConnectionState]);
 
   // Update recommendations when draft state changes
   useEffect(() => {
