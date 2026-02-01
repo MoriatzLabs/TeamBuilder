@@ -7,6 +7,7 @@ import { CacheModule } from './cache/cache.module';
 import { PlayersModule } from './players/players.module';
 import { ScoutingModule } from './scouting/scouting.module';
 import { DraftModule } from './draft/draft.module';
+import { SampleMatchesModule } from './sample-matches/sample-matches.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DraftModule } from './draft/draft.module';
     PlayersModule,
     ScoutingModule,
     DraftModule,
+    SampleMatchesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
