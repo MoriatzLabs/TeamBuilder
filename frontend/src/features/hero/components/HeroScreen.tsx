@@ -24,12 +24,18 @@ export function HeroScreen() {
           </h1>
         </div>
 
-        <div className="pt-16">
+        <div className="pt-16 flex flex-col sm:flex-row items-center justify-center gap-6">
           <button
             onClick={handleGetStarted}
             className="text-white text-3xl md:text-4xl font-light tracking-wide hover:opacity-80 transition-opacity cursor-pointer"
           >
             Get Started ...
+          </button>
+          <button
+            onClick={() => setCurrentView("sample-stats")}
+            className="text-muted-foreground text-lg hover:text-foreground transition-colors underline"
+          >
+            Sample Match Stats
           </button>
         </div>
       </div>

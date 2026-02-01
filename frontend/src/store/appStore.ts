@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppView = "hero" | "team-setup" | "draft";
+export type AppView = "hero" | "team-setup" | "draft" | "sample-stats";
 
 export type TeamSide = "blue" | "red";
 
