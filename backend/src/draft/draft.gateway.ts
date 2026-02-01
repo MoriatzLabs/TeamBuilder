@@ -82,7 +82,7 @@ export class DraftGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  // Simplified endpoint for quick mock recommendations
+  // Simplified endpoint: full draft state as JSON; recommendations update as picks/bans change
   @SubscribeMessage('getQuickRecommendations')
   async handleQuickRecommendations(
     @ConnectedSocket() client: Socket,
@@ -90,8 +90,24 @@ export class DraftGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     try {
       const { draftState } = payload;
+      if (!draftState) {
+        client.emit(WS_EVENTS.ERROR, {
+          code: 'INVALID_PAYLOAD',
+          message: 'draftState (JSON) is required',
+        });
+        return { success: false };
+      }
 
-      // Get recommendations (will return cached or mock instantly)
+      this.logger.debug('Recommendations request', {
+        phase: draftState.phase,
+        pickNumber: draftState.pickNumber,
+        blueBans: draftState.blueTeam?.bans?.length ?? 0,
+        bluePicks: draftState.blueTeam?.picks?.length ?? 0,
+        redBans: draftState.redTeam?.bans?.length ?? 0,
+        redPicks: draftState.redTeam?.picks?.length ?? 0,
+      });
+
+      // Get recommendations (full state drives AI; updates as more picks/bans are made)
       const response = await this.openaiService.getRecommendations(draftState);
 
       client.emit(WS_EVENTS.RECOMMENDATIONS, {

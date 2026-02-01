@@ -59,6 +59,17 @@ export const STATS_KEYS = [
 
 export type SampleMatchStatsRow = Record<(typeof STATS_KEYS)[number], string>;
 
+export interface TopChampionStats {
+  champion: string;
+  games: number;
+  winRate: number;
+  avgKda: number;
+  avgGoldEarned: number;
+  avgFirstTower: number;
+  avgGameDuration: number;
+  firstDragonPct?: number; // only for jungle
+}
+
 /** Parse a single CSV line respecting quoted commas */
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -159,5 +170,88 @@ export class SampleMatchesService {
       });
       return out as SampleMatchStatsRow;
     });
+  }
+
+  /** Resolve draft team name to CSV team_name (exact or partial match) */
+  resolveTeamName(displayName: string): string | null {
+    const rows = this.loadData();
+    const teams = Array.from(new Set(rows.map((r) => r.team_name).filter(Boolean)));
+    const normalized = displayName.trim();
+    const exact = teams.find((t) => t === normalized);
+    if (exact) return exact;
+    const partial = teams.find((t) => t.includes(normalized) || normalized.includes(t));
+    return partial ?? null;
+  }
+
+  /** Role in draft is JGL; CSV uses JUNGLE */
+  private normalizeRoleForCsv(role: string): string {
+    return role === 'JGL' ? 'JUNGLE' : role;
+  }
+
+  /**
+   * Top N champions for a player by performance (win rate, KDA, gold earned).
+   * Includes win_rate, kda, first_tower, game_duration, gold_earned; first_dragon for junglers only.
+   */
+  getTopChampionsWithStats(
+    teamName: string,
+    playerName: string,
+    role: string,
+    limit = 5,
+  ): TopChampionStats[] {
+    const resolvedTeam = this.resolveTeamName(teamName);
+    const csvRole = this.normalizeRoleForCsv(role);
+    const rows = this.loadData();
+    const playerRows = rows.filter(
+      (r) =>
+        (resolvedTeam ? r.team_name === resolvedTeam : r.team_name === teamName) &&
+        r.player_name.trim() === playerName.trim() &&
+        (r.role === csvRole || r.role === role),
+    );
+    if (playerRows.length === 0) return [];
+
+    const byChamp = new Map<
+      string,
+      { wins: number; kdaSum: number; goldSum: number; ftSum: number; durSum: number; fdSum: number; n: number }
+    >();
+    for (const r of playerRows) {
+      const champ = r.champion;
+      if (!byChamp.has(champ)) {
+        byChamp.set(champ, { wins: 0, kdaSum: 0, goldSum: 0, ftSum: 0, durSum: 0, fdSum: 0, n: 0 });
+      }
+      const row = byChamp.get(champ)!;
+      row.n += 1;
+      row.wins += Number(r.win) || 0;
+      row.kdaSum += Number(r.kda) || 0;
+      row.goldSum += Number(r.total_money_earned) || 0;
+      row.ftSum += Number(r.first_tower) || 0;
+      row.durSum += Number(r.game_duration) || 0;
+      row.fdSum += Number(r.first_dragon) || 0;
+    }
+
+    const isJungle = csvRole === 'JUNGLE';
+    const list: TopChampionStats[] = [];
+    for (const [champion, agg] of byChamp) {
+      const games = agg.n;
+      list.push({
+        champion,
+        games,
+        winRate: games ? (agg.wins / games) * 100 : 0,
+        avgKda: games ? agg.kdaSum / games : 0,
+        avgGoldEarned: games ? agg.goldSum / games : 0,
+        avgFirstTower: games ? agg.ftSum / games : 0,
+        avgGameDuration: games ? agg.durSum / games : 0,
+        ...(isJungle && { firstDragonPct: games ? (agg.fdSum / games) * 100 : 0 }),
+      });
+    }
+
+    const maxWr = Math.max(...list.map((x) => x.winRate), 1);
+    const maxKda = Math.max(...list.map((x) => x.avgKda), 1);
+    const maxGold = Math.max(...list.map((x) => x.avgGoldEarned), 1);
+    list.sort((a, b) => {
+      const scoreA = (a.winRate / maxWr) * 0.5 + (a.avgKda / maxKda) * 0.3 + (a.avgGoldEarned / maxGold) * 0.2;
+      const scoreB = (b.winRate / maxWr) * 0.5 + (b.avgKda / maxKda) * 0.3 + (b.avgGoldEarned / maxGold) * 0.2;
+      return scoreB - scoreA;
+    });
+    return list.slice(0, limit);
   }
 }

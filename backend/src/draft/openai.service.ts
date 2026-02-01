@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { SampleMatchesService } from '../sample-matches/sample-matches.service';
 
 export interface PlayerData {
   name: string;
@@ -81,11 +82,21 @@ export class OpenAIService {
   private cache: Map<string, CacheEntry> = new Map();
   private readonly CACHE_TTL = 60000; // 1 minute cache
 
-  constructor(private configService: ConfigService) {
+  private readonly FALLBACK_MODEL = 'gpt-4o-mini';
+
+  /** Model for recommendations: gpt-5-nano (default), or set OPENAI_MODEL in .env (e.g. gpt-4o-mini) */
+  private getModel(): string {
+    return this.configService.get<string>('OPENAI_MODEL') || 'gpt-5-nano';
+  }
+
+  constructor(
+    private configService: ConfigService,
+    private sampleMatches: SampleMatchesService,
+  ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     if (apiKey) {
       this.openai = new OpenAI({ apiKey });
-      this.logger.log('OpenAI client initialized');
+      this.logger.log(`OpenAI client initialized (model: ${this.getModel()})`);
     } else {
       this.logger.warn('OPENAI_API_KEY not configured - using mock responses');
     }
@@ -93,6 +104,26 @@ export class OpenAIService {
 
   private getCacheKey(state: DraftStateForAI): string {
     return `${state.phase}-${state.currentTeam}-${state.pickNumber}-${state.blueTeam.bans.join(',')}-${state.redTeam.bans.join(',')}-${state.blueTeam.picks.map((p) => p.champion).join(',')}-${state.redTeam.picks.map((p) => p.champion).join(',')}`;
+  }
+
+  private parseAndNormalizeResponse(content: string): AIAnalysisResponse {
+    const parsed = JSON.parse(content) as AIAnalysisResponse;
+    parsed.recommendations = parsed.recommendations.map((rec) => ({
+      ...rec,
+      championId:
+        rec.championId ||
+        rec.championName.toLowerCase().replace(/['\s]/g, ''),
+      flexLanes: rec.flexLanes || [],
+      goodAgainst: rec.goodAgainst || [],
+      badAgainst: rec.badAgainst || [],
+      synergiesWith: rec.synergiesWith || [],
+      teamNeeds: rec.teamNeeds || [],
+      masteryLevel: rec.masteryLevel || 'medium',
+    }));
+    this.logger.debug('OpenAI recommendations received', {
+      count: parsed.recommendations.length,
+    });
+    return parsed;
   }
 
   async getRecommendations(
@@ -110,56 +141,79 @@ export class OpenAIService {
       return this.getMockRecommendations(draftState);
     }
 
-    try {
-      const prompt = this.buildPrompt(draftState);
+    const model = this.getModel();
+    const prompt = this.buildPrompt(draftState);
+    const messages = [
+      { role: 'system' as const, content: this.getSystemPrompt() },
+      { role: 'user' as const, content: prompt },
+    ];
 
+    // gpt-5-nano only supports default temperature (1); other models support custom temperature
+    // 4096 tokens so full JSON (recommendations + tips + teamComposition) can complete; 2000 was hitting 'length'
+    const callOptions = {
+      messages,
+      response_format: { type: 'json_object' as const },
+      max_completion_tokens: 4096,
+      ...(model !== 'gpt-5-nano' && { temperature: 0.5 }),
+    };
+
+    // What we send: system = JSON schema + rules; user = draft state (phase, teams, bans, picks, player pools)
+    this.logger.debug('OpenAI request', {
+      model,
+      systemPromptChars: (messages[0]?.content as string)?.length ?? 0,
+      userPromptChars: (messages[1]?.content as string)?.length ?? 0,
+      userPromptPreview: typeof messages[1]?.content === 'string' ? (messages[1].content as string) : '',
+      max_completion_tokens: callOptions.max_completion_tokens,
+    });
+
+    try {
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: this.getSystemPrompt(),
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.5,
-        max_tokens: 2000,
+        model,
+        ...callOptions,
       });
 
-      const content = completion.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No response from OpenAI');
+      const firstChoice = completion.choices?.[0];
+      const content = firstChoice?.message?.content;
+      const finishReason = firstChoice?.finish_reason;
+
+      if (!content || (typeof content === 'string' && !content.trim())) {
+        this.logger.warn('OpenAI returned empty content', {
+          model,
+          finish_reason: finishReason,
+          choicesLength: completion.choices?.length ?? 0,
+        });
+        return this.getMockRecommendations(draftState);
       }
 
-      const parsed = JSON.parse(content) as AIAnalysisResponse;
+      if (finishReason === 'length') {
+        this.logger.warn('OpenAI response was truncated (length); consider increasing max_completion_tokens or shortening prompt');
+      }
 
-      // Ensure proper formatting
-      parsed.recommendations = parsed.recommendations.map((rec) => ({
-        ...rec,
-        championId:
-          rec.championId ||
-          rec.championName.toLowerCase().replace(/['\s]/g, ''),
-        flexLanes: rec.flexLanes || [],
-        goodAgainst: rec.goodAgainst || [],
-        badAgainst: rec.badAgainst || [],
-        synergiesWith: rec.synergiesWith || [],
-        teamNeeds: rec.teamNeeds || [],
-        masteryLevel: rec.masteryLevel || 'medium',
-      }));
-
-      this.logger.debug('OpenAI recommendations received', {
-        count: parsed.recommendations.length,
-      });
-
-      // Cache the response
+      const parsed = this.parseAndNormalizeResponse(content);
       this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
-
       return parsed;
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const isUnknownModel =
+        /model.*(does not exist|not found|invalid)/i.test(errMsg) ||
+        (error as { code?: string })?.code === 'invalid_model';
+      if (isUnknownModel && model !== this.FALLBACK_MODEL) {
+        this.logger.warn(`Model "${model}" not available, trying ${this.FALLBACK_MODEL}`);
+        try {
+          const completion = await this.openai.chat.completions.create({
+            model: this.FALLBACK_MODEL,
+            ...callOptions,
+          });
+          const fallbackContent = completion.choices[0]?.message?.content;
+          if (fallbackContent && String(fallbackContent).trim()) {
+            const parsed = this.parseAndNormalizeResponse(fallbackContent);
+            this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
+            return parsed;
+          }
+        } catch (fallbackError) {
+          this.logger.error('Fallback model also failed', fallbackError);
+        }
+      }
       this.logger.error('OpenAI API error, falling back to mock', error);
       return this.getMockRecommendations(draftState);
     }
@@ -187,17 +241,17 @@ export class OpenAIService {
 
     try {
       const prompt = this.buildPrompt(draftState);
-
+      const model = this.getModel();
       const stream = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model,
         messages: [
           { role: 'system', content: this.getSystemPrompt() },
           { role: 'user', content: prompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.5,
-        max_tokens: 2000,
+        max_completion_tokens: 4096,
         stream: true,
+        ...(model !== 'gpt-5-nano' && { temperature: 0.5 }),
       });
 
       let fullContent = '';
@@ -230,51 +284,30 @@ export class OpenAIService {
   }
 
   private getSystemPrompt(): string {
-    return `You are an expert League of Legends draft analyst for professional teams. Provide intelligent champion recommendations.
+    return `You are a League of Legends draft analyst. Return ONLY valid JSON.
 
-Return JSON with this structure:
+JSON shape (keep output SHORT to fit token limit):
 {
   "recommendations": [
     {
-      "championId": "string (lowercase, no spaces: 'leesin', 'ksante')",
-      "championName": "string (display name: 'Lee Sin', 'K'Sante')",
-      "score": number (0-100),
-      "type": "comfort" | "counter" | "meta" | "synergy" | "deny" | "flex",
-      "reasons": ["1-2 short reasons"],
-      "flexLanes": ["TOP", "MID", "JGL", "ADC", "SUP"],
-      "masteryLevel": "high" | "medium" | "low",
-      "teamNeeds": ["AD Damage", "AP Damage", "Engage", "Peel", "Waveclear"],
-      "forRole": "TOP" | "JGL" | "MID" | "ADC" | "SUP",
+      "championId": "lowercase id e.g. leesin",
+      "championName": "Display Name",
+      "score": 0-100,
+      "type": "comfort"|"counter"|"meta"|"synergy"|"deny"|"flex",
+      "reasons": ["one short reason"],
+      "flexLanes": ["TOP","JGL","MID","ADC","SUP"],
+      "masteryLevel": "high"|"medium"|"low",
+      "teamNeeds": ["AD","AP","Engage"],
+      "forRole": "TOP"|"JGL"|"MID"|"ADC"|"SUP",
       "forPlayer": "player name"
     }
   ],
-  "analysis": "1 sentence summary",
-  "tips": [
-    {
-      "type": "insight" | "warning" | "opportunity",
-      "message": "Short tip about the draft",
-      "source": "grid" | "ai" | "meta"
-    }
-  ],
-  "teamComposition": {
-    "type": "teamfight" | "poke" | "pick" | "split" | "mixed",
-    "strengths": ["strength1", "strength2"],
-    "weaknesses": ["weakness1"],
-    "damageBalance": { "ap": 0-100, "ad": 0-100, "true": 0-100 },
-    "powerSpikes": ["early", "mid", "late"],
-    "engageLevel": 0-100,
-    "peelLevel": 0-100
-  }
+  "analysis": "One short sentence.",
+  "tips": [{"type":"insight"|"warning"|"opportunity","message":"Short tip","source":"ai"}],
+  "teamComposition": {"type":"teamfight"|"poke"|"mixed","strengths":["one"],"weaknesses":["one"],"damageBalance":{"ap":50,"ad":50,"true":0},"powerSpikes":["mid"],"engageLevel":50,"peelLevel":50}
 }
 
-CRITICAL RULES:
-1. For PICKS: Recommend champions for ALL unfilled roles, not just one role. Include forRole and forPlayer fields.
-2. For BANS: Only recommend banning champions for roles NOT YET PICKED by the enemy. Already-picked roles are locked.
-3. Prioritize player comfort picks (high mastery) but include options for all available roles.
-4. Include 2-3 tips about the draft state, enemy tendencies, or strategic opportunities.
-5. Update damageBalance based on currently picked champions.
-6. Keep reasons brief (under 10 words each).
-7. Return 6-8 recommendations across different roles for picks.`;
+RULES: PICKS=recommend for ALL unfilled roles with forRole/forPlayer. BANS=only unfilled enemy roles. Prefer top-performing champs from the match data when given. Return 4-6 recommendations. 1-2 tips. Keep reasons under 6 words.`;
   }
 
   private buildPrompt(state: DraftStateForAI): string {
@@ -306,43 +339,55 @@ Your team's unfilled roles: ${unfilledRoles.join(', ') || 'ALL FILLED'}
 Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
 `;
 
+    const formatTopChamps = (name: string, role: string, teamName: string): string => {
+      const top = this.sampleMatches.getTopChampionsWithStats(teamName, name, role, 5);
+      if (top.length === 0) return '';
+      return top
+        .map(
+          (t) =>
+            `${t.champion} WR${t.winRate.toFixed(0)}% KDA${t.avgKda.toFixed(1)} gold${Math.round(t.avgGoldEarned)} ft${t.avgFirstTower.toFixed(1)} gd${Math.round(t.avgGameDuration)}` +
+            (t.firstDragonPct !== undefined ? ` fd${t.firstDragonPct.toFixed(0)}%` : ''),
+        )
+        .join(' | ');
+    };
+
     if (phase === 'pick') {
+      const ourTeamName = activeTeam.name;
+      const topChampLines = activeTeam.players
+        .filter((p) => unfilledRoles.includes(p.role))
+        .map((p) => {
+          const topLine = formatTopChamps(p.name, p.role, ourTeamName);
+          const poolLine = `${p.name} (${p.role}): ${p.championPool.slice(0, 5).map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`).join(', ')}`;
+          return topLine ? `${poolLine}\n  Top performance (match data): ${topLine}` : poolLine;
+        })
+        .join('\n');
       prompt += `
 PICK PHASE - Recommend champions for ALL these unfilled roles: ${unfilledRoles.join(', ')}
 
-Your players and their champion pools:
-${activeTeam.players
-  .filter((p) => unfilledRoles.includes(p.role))
-  .map(
-    (p) =>
-      `${p.name} (${p.role}): ${p.championPool
-        .slice(0, 5)
-        .map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`)
-        .join(', ')}`,
-  )
-  .join('\n')}
+Your players and champion pools (with top 5 performance from match data: win_rate, kda, gold_earned, first_tower, game_duration; first_dragon for junglers):
+${topChampLines}
 
-Include recommendations for each unfilled role. The team can choose which role to pick first.`;
+Include recommendations for each unfilled role. Prefer top-performing champs when they fit.`;
     }
 
     if (phase === 'ban') {
+      const enemyName = enemyTeam.name;
+      const enemyTopLines = enemyTeam.players
+        .filter((p) => enemyUnfilledRoles.includes(p.role))
+        .map((p) => {
+          const topLine = formatTopChamps(p.name, p.role, enemyName);
+          const poolLine = `${p.name} (${p.role}): ${p.championPool.slice(0, 4).map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`).join(', ')}`;
+          return topLine ? `${poolLine}\n  Top performance (match data): ${topLine}` : poolLine;
+        })
+        .join('\n');
       prompt += `
 BAN PHASE - ONLY target champions for these UNFILLED enemy roles: ${enemyUnfilledRoles.join(', ')}
-Do NOT recommend banning champions for already-picked roles (${enemyFilledRoles.join(', ') || 'none'}).
+Do NOT recommend banning already-picked roles (${enemyFilledRoles.join(', ') || 'none'}).
 
-Enemy players (UNFILLED roles only):
-${enemyTeam.players
-  .filter((p) => enemyUnfilledRoles.includes(p.role))
-  .map(
-    (p) =>
-      `${p.name} (${p.role}): ${p.championPool
-        .slice(0, 4)
-        .map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`)
-        .join(', ')}`,
-  )
-  .join('\n')}
+Enemy players (UNFILLED) and their top performance from match data (prioritize banning these):
+${enemyTopLines}
 
-Provide tips about enemy team tendencies and ban priorities.`;
+Recommend bans that target enemy comfort picks.`;
     }
 
     return prompt;

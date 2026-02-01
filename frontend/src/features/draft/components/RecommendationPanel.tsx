@@ -151,7 +151,7 @@ export function RecommendationPanel({
   const currentStep = getCurrentStep();
   const isBanPhase = currentStep?.type === "ban";
 
-  // Build AI draft state
+  // Full draft state for API (JSON): all bans, picks, players. Updates on every pick/ban so recommendations stay in sync.
   const aiDraftState = useMemo(() => {
     return buildAIDraftState(
       blueTeam,
@@ -162,11 +162,11 @@ export function RecommendationPanel({
   }, [
     blueTeam.name,
     JSON.stringify(blueTeam.bans.map((b) => b?.id)),
-    JSON.stringify(blueTeam.picks.map((p) => p?.id)),
+    JSON.stringify(blueTeam.picks.map((p) => `${p?.id}:${p?.name}`)),
     JSON.stringify(blueTeam.players.map((p) => p.name)),
     redTeam.name,
     JSON.stringify(redTeam.bans.map((b) => b?.id)),
-    JSON.stringify(redTeam.picks.map((p) => p?.id)),
+    JSON.stringify(redTeam.picks.map((p) => `${p?.id}:${p?.name}`)),
     JSON.stringify(redTeam.players.map((p) => p.name)),
     currentStep?.team,
     currentStep?.type,

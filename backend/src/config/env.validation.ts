@@ -10,6 +10,7 @@ export const envValidationSchema = Joi.object({
 
   // OpenAI API (optional - falls back to mock recommendations)
   OPENAI_API_KEY: Joi.string().optional(),
+  OPENAI_MODEL: Joi.string().optional(), // e.g. gpt-5-nano (default), gpt-4o-mini
 
   // Application
   PORT: Joi.number().default(3000),

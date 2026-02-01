@@ -14,7 +14,7 @@ interface UseAIRecommendationsResult {
   isConnected: boolean;
 }
 
-// Generate a unique key for a draft state to detect changes
+// Unique key so we re-request recommendations whenever any pick/ban changes
 function getDraftStateKey(state: AIDraftState | null): string {
   if (!state) return "null";
   return [
@@ -23,8 +23,8 @@ function getDraftStateKey(state: AIDraftState | null): string {
     state.pickNumber,
     state.blueTeam.bans.join(","),
     state.redTeam.bans.join(","),
-    state.blueTeam.picks.map((p) => p.champion).join(","),
-    state.redTeam.picks.map((p) => p.champion).join(","),
+    state.blueTeam.picks.map((p) => `${p.champion}:${p.role}`).join(","),
+    state.redTeam.picks.map((p) => `${p.champion}:${p.role}`).join(","),
   ].join("|");
 }
 
@@ -42,7 +42,7 @@ export function useAIRecommendations(
   const lastRequestedKeyRef = useRef<string | null>(null);
   const pendingRequestRef = useRef<boolean>(false);
 
-  // Initialize socket connection once
+  // Initialize socket connection once (survives Strict Mode double-mount without closing mid-handshake)
   useEffect(() => {
     const socket = io(`${SOCKET_URL}/draft`, {
       transports: ["websocket"],
@@ -53,25 +53,27 @@ export function useAIRecommendations(
     });
 
     socketRef.current = socket;
+    let cancelled = false;
 
     socket.on("connect", () => {
-      console.log("Draft socket connected");
+      if (cancelled) {
+        socket.disconnect();
+        return;
+      }
       setIsConnected(true);
       setError(null);
     });
 
     socket.on("disconnect", () => {
-      console.log("Draft socket disconnected");
-      setIsConnected(false);
+      if (!cancelled) setIsConnected(false);
     });
 
-    socket.on("connect_error", (err) => {
-      console.error("Draft socket connection error:", err);
+    socket.on("connect_error", () => {
+      if (cancelled) return;
       setError(new Error("Failed to connect to draft server"));
       setIsConnected(false);
     });
 
-    // Listen for recommendations
     socket.on(
       "recommendations",
       (payload: {
@@ -80,6 +82,7 @@ export function useAIRecommendations(
         teamComposition?: AIAnalysisResponse["teamComposition"];
         forTeam: string;
       }) => {
+        if (cancelled) return;
         setData({
           recommendations: payload.recommendations,
           analysis: payload.analysis || "",
@@ -91,15 +94,22 @@ export function useAIRecommendations(
     );
 
     socket.on("error", (err: { code: string; message: string }) => {
-      console.error("Draft socket error:", err);
+      if (cancelled) return;
       setError(new Error(err.message));
       setIsLoading(false);
       pendingRequestRef.current = false;
     });
 
     return () => {
-      socket.disconnect();
+      cancelled = true;
       socketRef.current = null;
+      // Avoid "WebSocket closed before connection established" (e.g. React Strict Mode):
+      // only disconnect after connect; otherwise defer disconnect to when connect fires.
+      if (socket.connected) {
+        socket.disconnect();
+      } else {
+        socket.once("connect", () => socket.disconnect());
+      }
     };
   }, []);
 
@@ -126,11 +136,7 @@ export function useAIRecommendations(
     // Clear previous recommendations to show clean loading state
     setData(null);
 
-    console.log(
-      "Requesting recommendations for:",
-      draftState.phase,
-      draftState.pickNumber,
-    );
+    // Send full draft state as JSON; API returns AI recommendations. Each pick/ban triggers a new request with updated state.
     socketRef.current.emit("getQuickRecommendations", { draftState });
   }, [draftState, enabled, isConnected]);
 
