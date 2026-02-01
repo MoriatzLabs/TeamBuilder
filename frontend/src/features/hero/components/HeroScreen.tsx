@@ -51,12 +51,6 @@ export function HeroScreen() {
         >
           Start Building
         </button>
-        <button
-          onClick={() => setCurrentView("sample-stats")}
-          className="text-muted-foreground text-lg hover:text-foreground transition-colors underline"
-        >
-          Sample Match Stats
-        </button>
       </div>
     </div>
   );
