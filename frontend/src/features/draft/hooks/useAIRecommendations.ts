@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import type {
   AIDraftState,
@@ -123,6 +123,8 @@ export function useAIRecommendations(
     lastRequestedKeyRef.current = currentKey;
     pendingRequestRef.current = true;
     setIsLoading(true);
+    // Clear previous recommendations to show clean loading state
+    setData(null);
 
     console.log(
       "Requesting recommendations for:",

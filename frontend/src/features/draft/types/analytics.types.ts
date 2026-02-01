@@ -96,16 +96,28 @@ export interface AIRecommendation {
   synergiesWith?: string[];
   masteryLevel?: "high" | "medium" | "low";
   teamNeeds?: string[];
+  forRole?: string;
+  forPlayer?: string;
+}
+
+export interface DraftTip {
+  type: "insight" | "warning" | "opportunity";
+  message: string;
+  source?: "grid" | "ai" | "meta";
 }
 
 export interface AIAnalysisResponse {
   recommendations: AIRecommendation[];
   analysis: string;
+  tips?: DraftTip[];
   teamComposition?: {
     type: string;
     strengths: string[];
     weaknesses: string[];
-    damageBalance: { ap: number; ad: number };
+    damageBalance: { ap: number; ad: number; true?: number };
+    powerSpikes?: string[];
+    engageLevel?: number;
+    peelLevel?: number;
   };
 }
 

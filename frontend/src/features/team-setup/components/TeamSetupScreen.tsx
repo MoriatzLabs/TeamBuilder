@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAppStore } from "@/store/appStore";
+import {
+  useAppStore,
+  type DraftChoiceType,
+  type PickOrderChoice,
+  type TeamSide,
+} from "@/store/appStore";
 import { ENEMY_TEAMS } from "@/shared/constants/teams";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -74,48 +79,8 @@ const ROLE_CONFIG: Record<string, { icon: string; label: string }> = {
   },
 };
 
-function getChampionImageUrl(championName: string): string {
-  const formatted = championName
-    .replace(/['\s.]/g, "")
-    .replace(/&/g, "")
-    .toLowerCase();
-
-  const specialCases: Record<string, string> = {
-    wukong: "MonkeyKing",
-    renataglasc: "Renata",
-    nunuwillump: "Nunu",
-    ksante: "KSante",
-    j4: "JarvanIV",
-    jarvaniv: "JarvanIV",
-    leesin: "LeeSin",
-    reksai: "RekSai",
-    smolder: "Smolder",
-    vi: "Vi",
-    sejuani: "Sejuani",
-    xinzhao: "XinZhao",
-    taliyah: "Taliyah",
-    viktor: "Viktor",
-    senna: "Senna",
-    xayah: "Xayah",
-    rell: "Rell",
-    sylas: "Sylas",
-    bard: "Bard",
-    jax: "Jax",
-    sion: "Sion",
-    poppy: "Poppy",
-  };
-
-  let key = specialCases[formatted];
-
-  if (!key) {
-    key = formatted
-      .split("")
-      .map((char, index) => (index === 0 ? char.toUpperCase() : char))
-      .join("");
-  }
-
-  return `/images/champions/${key}.png`;
-}
+// Use centralized champion image mapper
+import { getChampionImageUrl } from "@/utils/championImageMapper";
 
 async function fetchC9Players(): Promise<C9Response> {
   const response = await fetch("/api/players/c9");
@@ -164,10 +129,20 @@ export function TeamSetupScreen() {
   const [_isEnemyAutoRotating, setIsEnemyAutoRotating] = useState(true);
   const timePeriod = "LAST_3_MONTHS";
 
+  // 2026 Draft Strategy State
+  const [c9ChoiceType, setC9ChoiceType] = useState<DraftChoiceType>("side");
+  const [selectedSide, setSelectedSide] = useState<TeamSide | null>(null);
+  const [selectedPickOrder, setSelectedPickOrder] =
+    useState<PickOrderChoice | null>(null);
+  const [opponentChoice, setOpponentChoice] = useState<
+    TeamSide | PickOrderChoice | null
+  >(null);
+
   const {
-    c9Side,
     enemyTeam,
-    setC9Side,
+    draftConfig,
+    setC9ChooseSide,
+    setC9ChoosePickOrder,
     setEnemyTeam,
     setC9Players,
     setCurrentView,
@@ -293,12 +268,49 @@ export function TeamSetupScreen() {
   };
 
   const handleStartDraft = () => {
-    if (c9Side && enemyTeam) {
+    if (draftConfig && enemyTeam) {
       setCurrentView("draft");
     }
   };
 
-  const canStartDraft = c9Side !== null && enemyTeam !== null;
+  // Handle 2026 draft configuration
+  const handleC9ChoiceTypeChange = (type: DraftChoiceType) => {
+    setC9ChoiceType(type);
+    setSelectedSide(null);
+    setSelectedPickOrder(null);
+    setOpponentChoice(null);
+  };
+
+  const handleSideSelect = (side: TeamSide) => {
+    setSelectedSide(side);
+    // When C9 picks side, opponent needs to pick first/last
+    // Default opponent to "first" pick order
+    const defaultOpponentOrder: PickOrderChoice = "first";
+    setOpponentChoice(defaultOpponentOrder);
+    setC9ChooseSide(side, defaultOpponentOrder);
+  };
+
+  const handlePickOrderSelect = (order: PickOrderChoice) => {
+    setSelectedPickOrder(order);
+    // When C9 picks order, opponent needs to pick side
+    // Default opponent to "blue" side
+    const defaultOpponentSide: TeamSide = "blue";
+    setOpponentChoice(defaultOpponentSide);
+    setC9ChoosePickOrder(order, defaultOpponentSide);
+  };
+
+  const handleOpponentChoiceChange = (choice: TeamSide | PickOrderChoice) => {
+    setOpponentChoice(choice);
+    if (c9ChoiceType === "side" && selectedSide) {
+      // Opponent is choosing pick order
+      setC9ChooseSide(selectedSide, choice as PickOrderChoice);
+    } else if (c9ChoiceType === "pickOrder" && selectedPickOrder) {
+      // Opponent is choosing side
+      setC9ChoosePickOrder(selectedPickOrder, choice as TeamSide);
+    }
+  };
+
+  const canStartDraft = draftConfig !== null && enemyTeam !== null;
 
   if (isLoading) {
     return (
@@ -598,33 +610,247 @@ export function TeamSetupScreen() {
               </select>
             </div>
 
-            <div className="max-w-md flex-1 flex flex-col items-center justify-center px-4">
-              <h3 className="text-lg font-semibold mb-6 text-center">
-                C9 Side
+            <div className="max-w-lg flex-1 flex flex-col items-center justify-center px-4">
+              <h3 className="text-lg font-semibold mb-4 text-center">
+                2026 Draft Strategy
               </h3>
-              <div className="flex gap-3 justify-center w-full">
-                <Button
-                  variant={c9Side === "blue" ? "default" : "outline"}
-                  className={cn(
-                    "min-w-[140px]",
-                    c9Side === "blue" && "ring-2 ring-blue-team",
-                  )}
-                  onClick={() => setC9Side("blue")}
-                >
-                  Blue Side
-                </Button>
-                <Button
-                  variant={c9Side === "red" ? "default" : "outline"}
-                  className={cn(
-                    "min-w-[140px]",
-                    c9Side === "red" &&
-                      "bg-red-team text-white hover:bg-red-team/90 ring-2 ring-red-team",
-                  )}
-                  onClick={() => setC9Side("red")}
-                >
-                  Red Side
-                </Button>
+
+              {/* Step 1: C9 chooses what to select */}
+              <div className="w-full mb-4">
+                <p className="text-xs text-muted-foreground mb-2 text-center">
+                  C9 Chooses:
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    variant={c9ChoiceType === "side" ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "min-w-[100px]",
+                      c9ChoiceType === "side" && "ring-2 ring-primary",
+                    )}
+                    onClick={() => handleC9ChoiceTypeChange("side")}
+                  >
+                    Side
+                  </Button>
+                  <Button
+                    variant={
+                      c9ChoiceType === "pickOrder" ? "default" : "outline"
+                    }
+                    size="sm"
+                    className={cn(
+                      "min-w-[100px]",
+                      c9ChoiceType === "pickOrder" && "ring-2 ring-primary",
+                    )}
+                    onClick={() => handleC9ChoiceTypeChange("pickOrder")}
+                  >
+                    Pick Order
+                  </Button>
+                </div>
               </div>
+
+              {/* Step 2: C9's selection based on choice type */}
+              <div className="w-full mb-4">
+                <p className="text-xs text-muted-foreground mb-2 text-center">
+                  {c9ChoiceType === "side"
+                    ? "C9 Side Selection:"
+                    : "C9 Pick Order:"}
+                </p>
+                <div className="flex gap-2 justify-center">
+                  {c9ChoiceType === "side" ? (
+                    <>
+                      <Button
+                        variant={
+                          selectedSide === "blue" ? "default" : "outline"
+                        }
+                        size="sm"
+                        className={cn(
+                          "min-w-[100px]",
+                          selectedSide === "blue" &&
+                            "ring-2 ring-blue-team bg-blue-600 hover:bg-blue-700",
+                        )}
+                        onClick={() => handleSideSelect("blue")}
+                      >
+                        Blue Side
+                      </Button>
+                      <Button
+                        variant={selectedSide === "red" ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "min-w-[100px]",
+                          selectedSide === "red" &&
+                            "ring-2 ring-red-team bg-red-600 hover:bg-red-700",
+                        )}
+                        onClick={() => handleSideSelect("red")}
+                      >
+                        Red Side
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant={
+                          selectedPickOrder === "first" ? "default" : "outline"
+                        }
+                        size="sm"
+                        className={cn(
+                          "min-w-[100px]",
+                          selectedPickOrder === "first" &&
+                            "ring-2 ring-primary",
+                        )}
+                        onClick={() => handlePickOrderSelect("first")}
+                      >
+                        First Pick
+                      </Button>
+                      <Button
+                        variant={
+                          selectedPickOrder === "last" ? "default" : "outline"
+                        }
+                        size="sm"
+                        className={cn(
+                          "min-w-[100px]",
+                          selectedPickOrder === "last" && "ring-2 ring-primary",
+                        )}
+                        onClick={() => handlePickOrderSelect("last")}
+                      >
+                        Last Pick
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Step 3: Opponent's response (shown after C9 makes their choice) */}
+              {(selectedSide || selectedPickOrder) && (
+                <div className="w-full">
+                  <p className="text-xs text-muted-foreground mb-2 text-center">
+                    {c9ChoiceType === "side"
+                      ? `${enemyTeam?.abbreviation || "Opponent"} Pick Order:`
+                      : `${enemyTeam?.abbreviation || "Opponent"} Side Selection:`}
+                  </p>
+                  <div className="flex gap-2 justify-center">
+                    {c9ChoiceType === "side" ? (
+                      <>
+                        <Button
+                          variant={
+                            opponentChoice === "first" ? "default" : "outline"
+                          }
+                          size="sm"
+                          className={cn(
+                            "min-w-[100px]",
+                            opponentChoice === "first" &&
+                              "ring-2 ring-orange-500 bg-orange-600 hover:bg-orange-700",
+                          )}
+                          onClick={() => handleOpponentChoiceChange("first")}
+                        >
+                          First Pick
+                        </Button>
+                        <Button
+                          variant={
+                            opponentChoice === "last" ? "default" : "outline"
+                          }
+                          size="sm"
+                          className={cn(
+                            "min-w-[100px]",
+                            opponentChoice === "last" &&
+                              "ring-2 ring-orange-500 bg-orange-600 hover:bg-orange-700",
+                          )}
+                          onClick={() => handleOpponentChoiceChange("last")}
+                        >
+                          Last Pick
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant={
+                            opponentChoice === "blue" ? "default" : "outline"
+                          }
+                          size="sm"
+                          className={cn(
+                            "min-w-[100px]",
+                            opponentChoice === "blue" &&
+                              "ring-2 ring-blue-team bg-blue-600 hover:bg-blue-700",
+                          )}
+                          onClick={() => handleOpponentChoiceChange("blue")}
+                        >
+                          Blue Side
+                        </Button>
+                        <Button
+                          variant={
+                            opponentChoice === "red" ? "default" : "outline"
+                          }
+                          size="sm"
+                          className={cn(
+                            "min-w-[100px]",
+                            opponentChoice === "red" &&
+                              "ring-2 ring-red-team bg-red-600 hover:bg-red-700",
+                          )}
+                          onClick={() => handleOpponentChoiceChange("red")}
+                        >
+                          Red Side
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Summary of draft configuration */}
+              {draftConfig && (
+                <div className="w-full mt-4 p-3 bg-muted/50 rounded-lg">
+                  <p className="text-xs text-center text-muted-foreground mb-1">
+                    Draft Configuration:
+                  </p>
+                  <div className="flex justify-center gap-6 text-sm">
+                    <div className="text-center">
+                      <span className="font-semibold text-primary">C9</span>
+                      <p
+                        className={cn(
+                          "text-xs",
+                          draftConfig.c9Side === "blue"
+                            ? "text-blue-400"
+                            : "text-red-400",
+                        )}
+                      >
+                        {draftConfig.c9Side?.toUpperCase()} Side
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {draftConfig.c9ChoiceType === "side"
+                          ? draftConfig.opponentPickOrder === "first"
+                            ? "2nd Pick"
+                            : "1st Pick"
+                          : draftConfig.c9PickOrder === "first"
+                            ? "1st Pick"
+                            : "Last Pick"}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <span className="font-semibold text-orange-400">
+                        {enemyTeam?.abbreviation || "OPP"}
+                      </span>
+                      <p
+                        className={cn(
+                          "text-xs",
+                          draftConfig.opponentSide === "blue"
+                            ? "text-blue-400"
+                            : "text-red-400",
+                        )}
+                      >
+                        {draftConfig.opponentSide?.toUpperCase()} Side
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {draftConfig.c9ChoiceType === "side"
+                          ? draftConfig.opponentPickOrder === "first"
+                            ? "1st Pick"
+                            : "Last Pick"
+                          : draftConfig.opponentPickOrder === "first"
+                            ? "1st Pick"
+                            : "Last Pick"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="max-w-md flex-1 flex flex-col items-center justify-center px-4">
@@ -644,7 +870,7 @@ export function TeamSetupScreen() {
         </div>
         {!canStartDraft && (
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Please select enemy team and C9 side
+            Please select enemy team and configure 2026 draft strategy
           </p>
         )}
       </div>

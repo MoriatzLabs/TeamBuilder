@@ -3,8 +3,8 @@ import { StatsFeedClient } from '../grid/clients/stats-feed.client';
 import { CacheService } from '../cache/cache.service';
 
 // All League of Legends champions for draft (complete roster)
-// Images use Data Dragon CDN: https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/
-const DDRAGON_VERSION = '14.1.1';
+// Images use Data Dragon CDN: https://ddragon.leagueoflegends.com/cdn/14.24.1/img/champion/
+const DDRAGON_VERSION = '14.24.1';
 const getChampionImage = (name: string) =>
   `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${name}.png`;
 

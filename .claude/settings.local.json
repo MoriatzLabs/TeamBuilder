@@ -8,7 +8,10 @@
       "mcp__acp__Bash",
       "mcp__acp__Edit",
       "WebFetch(domain:developer.riotgames.com)",
-      "WebFetch(domain:raw.communitydragon.org)"
+      "WebFetch(domain:raw.communitydragon.org)",
+      "WebFetch(domain:grid.gg)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:ddragon.leagueoflegends.com)"
     ]
   }
 }

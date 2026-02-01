@@ -73,43 +73,8 @@ const ROLE_CONFIG: Record<string, { icon: string; label: string }> = {
   },
 };
 
-// Champion image URL helper
-function getChampionImageUrl(championName: string): string {
-  const formatted = championName
-    .replace(/['\s.]/g, "")
-    .replace(/&/g, "")
-    .toLowerCase();
-
-  const specialCases: Record<string, string> = {
-    wukong: "MonkeyKing",
-    renataglasc: "Renata",
-    nunuwillump: "Nunu",
-    ksante: "KSante",
-    j4: "JarvanIV",
-    jarvaniv: "JarvanIV",
-    leesin: "LeeSin",
-    reksai: "RekSai",
-    smolder: "Smolder",
-    vi: "Vi",
-    sejuani: "Sejuani",
-    xinzhao: "XinZhao",
-    taliyah: "Taliyah",
-    viktor: "Viktor",
-    senna: "Senna",
-    xayah: "Xayah",
-    rell: "Rell",
-    sylas: "Sylas",
-    bard: "Bard",
-    jax: "Jax",
-    sion: "Sion",
-    poppy: "Poppy",
-  };
-
-  const key =
-    specialCases[formatted] ||
-    formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  return `/images/champions/${key}.png`;
-}
+// Use centralized champion image mapper
+import { getChampionImageUrl } from "@/utils/championImageMapper";
 
 async function fetchC9Players(): Promise<C9Response> {
   const response = await fetch("/api/players/c9");

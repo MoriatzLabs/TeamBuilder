@@ -5,6 +5,8 @@ export function DraftHeader() {
   const currentStep = useDraftStore((state) => state.getCurrentStep());
   const isComplete = useDraftStore((state) => state.isComplete);
   const selectedChampion = useDraftStore((state) => state.selectedChampion);
+  const firstPickTeam = useDraftStore((state) => state.firstPickTeam);
+  const draftConfig = useDraftStore((state) => state.draftConfig);
 
   const getHeaderText = () => {
     if (isComplete) return "Draft Complete";
@@ -56,8 +58,23 @@ export function DraftHeader() {
           )}
         </div>
 
-        {/* Right - Spacer for balance */}
+        {/* Right - 2026 Draft Info */}
         <div className="flex items-center gap-3 min-w-[200px] justify-end">
+          {draftConfig && !isComplete && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">1st Pick:</span>
+              <span
+                className={cn(
+                  "text-xs font-semibold px-2 py-0.5 rounded",
+                  firstPickTeam === "blue"
+                    ? "bg-blue-team/20 text-blue-400"
+                    : "bg-red-team/20 text-red-400",
+                )}
+              >
+                {firstPickTeam === "blue" ? "Blue" : "Red"}
+              </span>
+            </div>
+          )}
           {isComplete && (
             <span className="text-sm font-medium text-emerald-500">
               Good luck!

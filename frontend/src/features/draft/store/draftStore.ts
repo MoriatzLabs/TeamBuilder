@@ -12,8 +12,14 @@ import type {
   TeamAnalysis,
   Team,
 } from "../types/analytics.types";
-import type { Player, EnemyTeam } from "@/store/appStore";
-import { getCurrentDraftStep, isDraftComplete } from "../utils/draftSequence";
+import type { Player, EnemyTeam, DraftConfig2026 } from "@/store/appStore";
+import {
+  getCurrentDraftStep,
+  isDraftComplete,
+  createDraftSequenceFromConfig,
+  setActiveDraftSequence,
+  getFirstPickTeam,
+} from "../utils/draftSequence";
 
 // Mock champion pool data for C9 players
 const C9_PLAYER_POOLS: Record<
@@ -119,6 +125,10 @@ interface DraftState {
   isConnected: boolean;
   roomId: string | null;
   myTeam: Team;
+
+  // 2026 Draft Configuration
+  draftConfig: DraftConfig2026 | null;
+  firstPickTeam: Team;
 }
 
 interface DraftStore extends DraftState {
@@ -128,6 +138,7 @@ interface DraftStore extends DraftState {
     c9Side: "blue" | "red",
     c9Players: Player[],
     enemyTeam: EnemyTeam,
+    draftConfig?: DraftConfig2026 | null,
   ) => void;
 
   // Selection
@@ -190,6 +201,8 @@ const initialState: DraftState = {
   isConnected: false,
   roomId: null,
   myTeam: "blue",
+  draftConfig: null,
+  firstPickTeam: "blue",
 };
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
@@ -202,6 +215,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     c9Side: "blue" | "red",
     c9Players: Player[],
     enemyTeam: EnemyTeam,
+    draftConfig?: DraftConfig2026 | null,
   ) => {
     const c9TeamName = "Cloud9";
     const enemyTeamName = enemyTeam.name;
@@ -224,17 +238,29 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
       }),
     );
 
+    // Set up the 2026 draft sequence if config is provided
+    let firstPickTeam: Team = "blue"; // Default to blue for backwards compatibility
+    if (draftConfig) {
+      firstPickTeam = getFirstPickTeam(draftConfig);
+      const sequence = createDraftSequenceFromConfig(draftConfig);
+      setActiveDraftSequence(sequence);
+    }
+
     if (c9Side === "blue") {
       set({
         blueTeam: createEmptyTeam(c9TeamName, c9DraftPlayers),
         redTeam: createEmptyTeam(enemyTeamName, enemyDraftPlayers),
         myTeam: "blue",
+        draftConfig: draftConfig || null,
+        firstPickTeam,
       });
     } else {
       set({
         blueTeam: createEmptyTeam(enemyTeamName, enemyDraftPlayers),
         redTeam: createEmptyTeam(c9TeamName, c9DraftPlayers),
         myTeam: "red",
+        draftConfig: draftConfig || null,
+        firstPickTeam,
       });
     }
   },

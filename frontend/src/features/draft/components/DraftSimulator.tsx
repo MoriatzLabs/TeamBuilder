@@ -96,15 +96,22 @@ export function DraftSimulator() {
     initializeTeams,
   } = useDraftStore();
 
-  const { c9Side, c9Players, enemyTeam } = useAppStore();
+  const { c9Side, c9Players, enemyTeam, draftConfig } = useAppStore();
   const currentStep = useDraftStore((state) => state.getCurrentStep());
 
   useEffect(() => {
     if (c9Side && c9Players && enemyTeam) {
-      initializeTeams(c9Side, c9Players, enemyTeam);
+      initializeTeams(c9Side, c9Players, enemyTeam, draftConfig);
       setConnectionState(true, "mock-room", c9Side);
     }
-  }, [c9Side, c9Players, enemyTeam, initializeTeams, setConnectionState]);
+  }, [
+    c9Side,
+    c9Players,
+    enemyTeam,
+    draftConfig,
+    initializeTeams,
+    setConnectionState,
+  ]);
 
   // Update team analysis when picks change (recommendations handled by API in RecommendationPanel)
   useEffect(() => {
@@ -204,13 +211,13 @@ export function DraftSimulator() {
         </div>
 
         {/* Center - Recommendations + Team Analysis */}
-        <div className="flex-1 min-w-0 h-full flex flex-col gap-4">
-          {/* Recommendation Panel - Main focus */}
-          <div className="flex-1 min-h-0">
+        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-hidden">
+          {/* Recommendation Panel - takes available space */}
+          <div className="flex-1 min-h-0 overflow-auto">
             <RecommendationPanel onSelectChampion={handleSelectChampion} />
           </div>
 
-          {/* Team Analysis Cards */}
+          {/* Team Analysis Cards - fixed at bottom */}
           <div className="flex gap-4 flex-shrink-0">
             <div className="flex-1">
               <TeamAnalysisCard team="blue" />
