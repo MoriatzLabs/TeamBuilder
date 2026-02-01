@@ -335,6 +335,17 @@ export function TeamSetupScreen() {
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
+      {/* GRID Player Statistics Button */}
+      <div className="flex justify-center py-4 border-b border-border-subtle">
+        <Button
+          onClick={() => setCurrentView("sample-stats")}
+          size="lg"
+          className="h-11 font-semibold rounded-lg min-w-[140px]"
+        >
+          GRID Player Statistics
+        </Button>
+      </div>
+
       <div className="flex-1 grid grid-cols-2 min-h-0 overflow-y-auto gap-2">
         <div className="flex flex-col items-center justify-center px-6 py-4 min-w-0 overflow-hidden">
           <div className="w-full max-w-4xl mx-auto">
@@ -584,8 +595,8 @@ export function TeamSetupScreen() {
       </div>
 
       {/* Single bottom panel: 25% height, opponent + draft + start in one flow */}
-      <div className="flex-shrink-0 h-[25vh] min-h-0 border-t border-border-subtle bg-card/50 pl-8 pr-6 py-2 flex items-center">
-        <div className="w-full h-full flex flex-wrap items-center gap-4 overflow-y-auto">
+      <div className="flex-shrink-0 h-[25vh] min-h-0 border-t border-border-subtle bg-card/50 pl-8 pr-6 py-2 flex items-center justify-center">
+        <div className="w-full h-full flex flex-wrap items-center justify-center gap-4 overflow-y-auto">
           <div className="flex items-center gap-2 flex-shrink-0">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
               Opponent
@@ -706,9 +717,7 @@ export function TeamSetupScreen() {
                         </Button>
                         <Button
                           variant={
-                            selectedPickOrder === "last"
-                              ? "default"
-                              : "outline"
+                            selectedPickOrder === "last" ? "default" : "outline"
                           }
                           size="sm"
                           className={cn(
@@ -744,9 +753,7 @@ export function TeamSetupScreen() {
                             opponentChoice === "first" &&
                               "ring-2 ring-orange-500 bg-orange-600 hover:bg-orange-700",
                           )}
-                          onClick={() =>
-                            handleOpponentChoiceChange("first")
-                          }
+                          onClick={() => handleOpponentChoiceChange("first")}
                         >
                           First
                         </Button>
@@ -760,9 +767,7 @@ export function TeamSetupScreen() {
                             opponentChoice === "last" &&
                               "ring-2 ring-orange-500 bg-orange-600 hover:bg-orange-700",
                           )}
-                          onClick={() =>
-                            handleOpponentChoiceChange("last")
-                          }
+                          onClick={() => handleOpponentChoiceChange("last")}
                         >
                           Last
                         </Button>
@@ -771,9 +776,7 @@ export function TeamSetupScreen() {
                       <>
                         <Button
                           variant={
-                            opponentChoice === "blue"
-                              ? "default"
-                              : "outline"
+                            opponentChoice === "blue" ? "default" : "outline"
                           }
                           size="sm"
                           className={cn(
@@ -781,17 +784,13 @@ export function TeamSetupScreen() {
                             opponentChoice === "blue" &&
                               "ring-2 ring-blue-team bg-blue-600 hover:bg-blue-700",
                           )}
-                          onClick={() =>
-                            handleOpponentChoiceChange("blue")
-                          }
+                          onClick={() => handleOpponentChoiceChange("blue")}
                         >
                           Blue
                         </Button>
                         <Button
                           variant={
-                            opponentChoice === "red"
-                              ? "default"
-                              : "outline"
+                            opponentChoice === "red" ? "default" : "outline"
                           }
                           size="sm"
                           className={cn(
@@ -799,9 +798,7 @@ export function TeamSetupScreen() {
                             opponentChoice === "red" &&
                               "ring-2 ring-red-team bg-red-600 hover:bg-red-700",
                           )}
-                          onClick={() =>
-                            handleOpponentChoiceChange("red")
-                          }
+                          onClick={() => handleOpponentChoiceChange("red")}
                         >
                           Red
                         </Button>
