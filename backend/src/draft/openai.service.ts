@@ -139,6 +139,35 @@ export class OpenAIService {
   }
 
   /**
+   * Filter recommendations so picks are only for our unfilled roles and bans only for enemy unfilled roles.
+   * Also removes any recommendation for an already picked/banned champion.
+   */
+  private filterRecommendationsByRole(
+    state: DraftStateForAI,
+    recommendations: AIRecommendation[],
+  ): AIRecommendation[] {
+    const { phase, blueTeam, redTeam } = state;
+    const activeTeam = state.currentTeam === 'blue' ? blueTeam : redTeam;
+    const enemyTeam = state.currentTeam === 'blue' ? redTeam : blueTeam;
+    const filledRoles = activeTeam.picks.map((p) => p.role);
+    const enemyFilledRoles = enemyTeam.picks.map((p) => p.role);
+    const allRoles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
+    const unfilledRoles = allRoles.filter((r) => !filledRoles.includes(r));
+    const enemyUnfilledRoles = allRoles.filter(
+      (r) => !enemyFilledRoles.includes(r),
+    );
+    const unavailable = this.getUnavailableChampIds(state);
+
+    return recommendations.filter((rec) => {
+      if (unavailable.has(rec.championId)) return false;
+      const forRole = rec.forRole;
+      if (!forRole) return true;
+      if (phase === 'pick') return unfilledRoles.includes(forRole);
+      return enemyUnfilledRoles.includes(forRole);
+    });
+  }
+
+  /**
    * Build top performing champs for the recommendation response.
    * Ban phase: opponent side (unfilled roles). Pick phase: side for which rec is being made (unfilled roles).
    * Excludes already picked/banned champs so they are not suggested.
@@ -245,7 +274,12 @@ export class OpenAIService {
     }
 
     if (!this.openai) {
-      return this.getMockRecommendations(draftState);
+      const mock = this.getMockRecommendations(draftState);
+      mock.recommendations = this.filterRecommendationsByRole(
+        draftState,
+        mock.recommendations,
+      ).slice(0, 5);
+      return { ...mock, topPerformingChampions };
     }
 
     const model = this.getModel();
@@ -290,6 +324,10 @@ export class OpenAIService {
           choicesLength: completion.choices?.length ?? 0,
         });
         const mock = this.getMockRecommendations(draftState);
+        mock.recommendations = this.filterRecommendationsByRole(
+          draftState,
+          mock.recommendations,
+        ).slice(0, 5);
         return { ...mock, topPerformingChampions };
       }
 
@@ -298,6 +336,10 @@ export class OpenAIService {
       }
 
       const parsed = this.parseAndNormalizeResponse(content);
+      parsed.recommendations = this.filterRecommendationsByRole(
+        draftState,
+        parsed.recommendations,
+      ).slice(0, 5);
       this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
       return { ...parsed, topPerformingChampions };
     } catch (error: unknown) {
@@ -315,6 +357,10 @@ export class OpenAIService {
           const fallbackContent = completion.choices[0]?.message?.content;
           if (fallbackContent && String(fallbackContent).trim()) {
             const parsed = this.parseAndNormalizeResponse(fallbackContent);
+            parsed.recommendations = this.filterRecommendationsByRole(
+              draftState,
+              parsed.recommendations,
+            ).slice(0, 5);
             this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
             return { ...parsed, topPerformingChampions };
           }
@@ -324,6 +370,10 @@ export class OpenAIService {
       }
       this.logger.error('OpenAI API error, falling back to mock', error);
       const mock = this.getMockRecommendations(draftState);
+      mock.recommendations = this.filterRecommendationsByRole(
+        draftState,
+        mock.recommendations,
+      ).slice(0, 5);
       return { ...mock, topPerformingChampions };
     }
   }
@@ -345,6 +395,10 @@ export class OpenAIService {
 
     // Yield mock data immediately while waiting for OpenAI
     const mockData = this.getMockRecommendations(draftState);
+    mockData.recommendations = this.filterRecommendationsByRole(
+      draftState,
+      mockData.recommendations,
+    ).slice(0, 5);
     yield { ...mockData, topPerformingChampions };
 
     if (!this.openai) {
@@ -386,6 +440,10 @@ export class OpenAIService {
           teamNeeds: rec.teamNeeds || [],
           masteryLevel: rec.masteryLevel || 'medium',
         }));
+        parsed.recommendations = this.filterRecommendationsByRole(
+          draftState,
+          parsed.recommendations,
+        ).slice(0, 5);
 
         this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
         yield { ...parsed, topPerformingChampions };
@@ -419,7 +477,10 @@ JSON shape (keep output SHORT to fit token limit):
   "teamComposition": {"type":"teamfight"|"poke"|"mixed","strengths":["one"],"weaknesses":["one"],"damageBalance":{"ap":50,"ad":50,"true":0},"powerSpikes":["mid"],"engageLevel":50,"peelLevel":50}
 }
 
-RULES: PICKS=recommend for ALL unfilled roles with forRole/forPlayer. BANS=only unfilled enemy roles. Prefer top-performing champs from the match data when given. Return exactly 5 recommendations. Return 0 tips. Keep reasons short (under 6 words each); reasons are shown in tooltips.`;
+RULES:
+- PICKS: Only recommend champions for YOUR team's UNFILLED roles. Set forRole only to a role that does not yet have a pick. Do not suggest champions for roles that already have a pick.
+- BANS: Only suggest bans that target the ENEMY's UNFILLED roles. Set forRole only to an enemy role that does not yet have a pick. Do not suggest banning champions for roles the enemy has already filled (e.g. in second ban phase, do not suggest ADC bans if enemy already has ADC).
+- Prefer top-performing champs from the match data when given. Return exactly 5 recommendations. Return 0 tips. Keep reasons short (under 6 words each); reasons are shown in tooltips.`;
   }
 
   private buildPrompt(state: DraftStateForAI): string {
@@ -482,12 +543,13 @@ Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
         })
         .join('\n');
       prompt += `
-PICK PHASE - Recommend champions for ALL these unfilled roles: ${unfilledRoles.join(', ')}
+PICK PHASE - Recommend champions ONLY for these unfilled roles: ${unfilledRoles.join(', ')}
+Do NOT suggest champions for roles that already have a pick (${filledRoles.join(', ') || 'none'}).
 
 Your players and champion pools (with top 5 performance from match data: win_rate, kda, gold_earned, first_tower, game_duration; first_dragon for junglers):
 ${topChampLines}
 
-Include recommendations for each unfilled role. Prefer top-performing champs when they fit.`;
+Include recommendations only for unfilled roles. Prefer top-performing champs when they fit.`;
     }
 
     if (phase === 'ban') {
@@ -501,13 +563,13 @@ Include recommendations for each unfilled role. Prefer top-performing champs whe
         })
         .join('\n');
       prompt += `
-BAN PHASE - ONLY target champions for these UNFILLED enemy roles: ${enemyUnfilledRoles.join(', ')}
-Do NOT recommend banning already-picked roles (${enemyFilledRoles.join(', ') || 'none'}).
+BAN PHASE - ONLY suggest bans for the enemy's UNFILLED roles: ${enemyUnfilledRoles.join(', ')}
+Do NOT suggest banning champions for roles the enemy has already filled (${enemyFilledRoles.join(', ') || 'none'}). In second ban phase, only target champions that could be played in unfilled enemy roles.
 
 Enemy players (UNFILLED) and their top performance from match data (prioritize banning these):
 ${enemyTopLines}
 
-Recommend bans that target enemy comfort picks.`;
+Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
     }
 
     return prompt;
