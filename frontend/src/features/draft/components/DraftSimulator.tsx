@@ -9,7 +9,6 @@ import { TeamAnalysisCard } from "./TeamAnalysisCard";
 import { DraftHeader } from "./DraftHeader";
 import { DraftControls } from "./DraftControls";
 import type { Champion } from "../types/draft.types";
-import type { TeamAnalysis } from "../types/analytics.types";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,62 +25,6 @@ async function fetchChampions(): Promise<ChampionsResponse> {
   return response.json();
 }
 
-// Team analysis generator (kept local for team analysis cards)
-function generateTeamAnalysis(
-  picks: (Champion | null)[],
-  team: "blue" | "red",
-): TeamAnalysis | null {
-  const validPicks = picks.filter(Boolean) as Champion[];
-  if (validPicks.length === 0) return null;
-
-  const hasEngage = validPicks.some((p) =>
-    ["nautilus", "thresh", "rakan", "jarvaniv", "ksante"].includes(
-      p.id.toLowerCase(),
-    ),
-  );
-  const hasPeel = validPicks.some((p) =>
-    ["lulu", "thresh", "nautilus", "janna"].includes(p.id.toLowerCase()),
-  );
-  const apCount = validPicks.filter((p) =>
-    ["syndra", "azir", "orianna", "ahri", "leblanc"].includes(
-      p.id.toLowerCase(),
-    ),
-  ).length;
-  const adCount = validPicks.length - apCount;
-
-  const strengths: string[] = [];
-  const weaknesses: string[] = [];
-
-  if (hasEngage) strengths.push("Strong engage tools");
-  if (hasPeel) strengths.push("Good peel for carries");
-  if (validPicks.length >= 3) strengths.push("Solid team composition");
-
-  if (!hasEngage && validPicks.length >= 2)
-    weaknesses.push("Lacks reliable engage");
-  if (apCount === 0 && validPicks.length >= 2)
-    weaknesses.push("No AP damage threat");
-  if (adCount === 0 && validPicks.length >= 2)
-    weaknesses.push("No AD damage threat");
-
-  const total = apCount + adCount || 1;
-
-  return {
-    team,
-    strengths,
-    weaknesses,
-    compositionType: hasEngage ? "teamfight" : "mixed",
-    damageProfile: {
-      ap: Math.round((apCount / total) * 100),
-      ad: Math.round((adCount / total) * 100),
-      true: 0,
-    },
-    powerSpikes: validPicks.length >= 3 ? ["mid", "late"] : ["mid"],
-    engageLevel: hasEngage ? 75 : 35,
-    peelLevel: hasPeel ? 80 : 40,
-    waveclearLevel: 60,
-  };
-}
-
 export function DraftSimulator() {
   const {
     blueTeam,
@@ -91,7 +34,6 @@ export function DraftSimulator() {
     selectChampion,
     selectedChampion,
     isComplete,
-    setTeamAnalysis,
     setConnectionState,
     initializeTeams,
   } = useDraftStore();
@@ -112,13 +54,6 @@ export function DraftSimulator() {
     initializeTeams,
     setConnectionState,
   ]);
-
-  // Update team analysis when picks change (recommendations handled by API in RecommendationPanel)
-  useEffect(() => {
-    const blueAnalysis = generateTeamAnalysis(blueTeam.picks, "blue");
-    const redAnalysis = generateTeamAnalysis(redTeam.picks, "red");
-    setTeamAnalysis(blueAnalysis, redAnalysis);
-  }, [blueTeam.picks, redTeam.picks, setTeamAnalysis]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["champions"],
@@ -217,14 +152,11 @@ export function DraftSimulator() {
             <RecommendationPanel onSelectChampion={handleSelectChampion} />
           </div>
 
-          {/* Team Analysis Cards - fixed at bottom */}
-          <div className="flex gap-4 flex-shrink-0">
-            <div className="flex-1">
-              <TeamAnalysisCard team="blue" />
-            </div>
-            <div className="flex-1">
-              <TeamAnalysisCard team="red" />
-            </div>
+          {/* Team Analysis - only the team currently picking (from AI), full width */}
+          <div className="flex-shrink-0 w-full">
+            {currentStep?.team ? (
+              <TeamAnalysisCard team={currentStep.team} />
+            ) : null}
           </div>
         </div>
 

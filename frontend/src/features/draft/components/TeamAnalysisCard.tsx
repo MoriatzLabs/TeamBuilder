@@ -25,8 +25,12 @@ export function TeamAnalysisCard({ team }: TeamAnalysisCardProps) {
   const analysis = useDraftStore((state) =>
     team === "blue" ? state.blueTeamAnalysis : state.redTeamAnalysis,
   );
+  const picks = useDraftStore((state) =>
+    team === "blue" ? state.blueTeam.picks : state.redTeam.picks,
+  );
+  const hasAtLeastOnePick = picks.filter(Boolean).length >= 1;
 
-  if (!analysis) {
+  if (!analysis || !hasAtLeastOnePick) {
     return (
       <div className="bg-card rounded-xl border border-border-subtle p-6 h-full flex items-center justify-center">
         <p className="text-sm text-muted-foreground text-center">

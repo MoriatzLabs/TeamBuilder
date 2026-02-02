@@ -1,31 +1,16 @@
 import { useDraftStore } from "../store/draftStore";
 import { RecommendationTable } from "./RecommendationTable";
-import {
-  Sparkles,
-  AlertTriangle,
-  Info,
-  Loader2,
-  Wifi,
-  WifiOff,
-  Lightbulb,
-  Target,
-  TrendingUp,
-  Shield,
-  Swords,
-  Clock,
-  Zap,
-  Users,
-} from "lucide-react";
+import { Sparkles, Loader2, Wifi, WifiOff } from "lucide-react";
 import type { Champion } from "../types/draft.types";
 import type {
   AIDraftState,
   AIPlayerData,
-  DraftTip,
+  TeamAnalysis,
+  Team,
 } from "../types/analytics.types";
 import { useAIRecommendations } from "../hooks/useAIRecommendations";
 import { useEffect, useMemo } from "react";
 import { getChampionImageUrl } from "@/utils/championImageMapper";
-import { cn } from "@/lib/utils";
 
 interface RecommendationPanelProps {
   onSelectChampion: (champion: Champion) => void;
@@ -98,44 +83,41 @@ function buildAIDraftState(
   };
 }
 
-// Tip styling helpers
-function getTipIcon(type: DraftTip["type"]) {
-  switch (type) {
-    case "insight":
-      return <Lightbulb className="w-3 h-3" />;
-    case "warning":
-      return <AlertTriangle className="w-3 h-3" />;
-    case "opportunity":
-      return <Target className="w-3 h-3" />;
-    default:
-      return <Info className="w-3 h-3" />;
-  }
-}
+/** Map AI response teamComposition to store TeamAnalysis (for the team that is picking). */
+function mapTeamCompositionToAnalysis(
+  comp: NonNullable<
+    import("../types/analytics.types").AIAnalysisResponse["teamComposition"]
+  >,
+  team: Team,
+): TeamAnalysis {
+  const validSpikes = ["early", "mid", "late"] as const;
+  const powerSpikes = (comp.powerSpikes || [])
+    .map((s) => (typeof s === "string" ? s.toLowerCase() : ""))
+    .filter((s): s is (typeof validSpikes)[number] =>
+      validSpikes.includes(s as (typeof validSpikes)[number]),
+    );
+  const compositionType =
+    (["teamfight", "poke", "pick", "split", "mixed"] as const).includes(
+      comp.type as "teamfight" | "poke" | "pick" | "split" | "mixed",
+    )
+      ? (comp.type as TeamAnalysis["compositionType"])
+      : "mixed";
 
-function getTipStyles(type: DraftTip["type"]) {
-  switch (type) {
-    case "insight":
-      return "bg-blue-500/10 border-blue-500/30 text-blue-300";
-    case "warning":
-      return "bg-amber-500/10 border-amber-500/30 text-amber-300";
-    case "opportunity":
-      return "bg-emerald-500/10 border-emerald-500/30 text-emerald-300";
-    default:
-      return "bg-muted/10 border-border-subtle text-muted-foreground";
-  }
-}
-
-function getSourceBadge(source?: DraftTip["source"]) {
-  switch (source) {
-    case "grid":
-      return { label: "GRID", color: "bg-cyan-500/20 text-cyan-400" };
-    case "ai":
-      return { label: "AI", color: "bg-purple-500/20 text-purple-400" };
-    case "meta":
-      return { label: "META", color: "bg-orange-500/20 text-orange-400" };
-    default:
-      return null;
-  }
+  return {
+    team,
+    strengths: comp.strengths ?? [],
+    weaknesses: comp.weaknesses ?? [],
+    compositionType,
+    damageProfile: {
+      ap: comp.damageBalance?.ap ?? 0,
+      ad: comp.damageBalance?.ad ?? 0,
+      true: comp.damageBalance?.true ?? 0,
+    },
+    powerSpikes: powerSpikes.length > 0 ? powerSpikes : ["mid"],
+    engageLevel: comp.engageLevel ?? 35,
+    peelLevel: comp.peelLevel ?? 40,
+    waveclearLevel: 60,
+  };
 }
 
 export function RecommendationPanel({
@@ -147,6 +129,7 @@ export function RecommendationPanel({
   const redTeam = useDraftStore((state) => state.redTeam);
   const availableChampions = useDraftStore((state) => state.availableChampions);
   const setRecommendations = useDraftStore((state) => state.setRecommendations);
+  const setTeamAnalysis = useDraftStore((state) => state.setTeamAnalysis);
 
   const currentStep = getCurrentStep();
   const isBanPhase = currentStep?.type === "ban";
@@ -178,9 +161,11 @@ export function RecommendationPanel({
     isConnected,
   } = useAIRecommendations(aiDraftState, !isComplete);
 
-  // Update store when recommendations change
+  // Update store when recommendations change (and set active team's analysis from AI)
   useEffect(() => {
-    if (aiResponse?.recommendations) {
+    if (!aiResponse) return;
+
+    if (aiResponse.recommendations) {
       const converted = aiResponse.recommendations.map((rec) => ({
         champion: {
           id: rec.championId,
@@ -200,7 +185,21 @@ export function RecommendationPanel({
       }));
       setRecommendations(converted);
     }
-  }, [aiResponse, setRecommendations]);
+
+    // Set active team's analysis from AI teamComposition (team that is currently picking)
+    if (aiResponse.teamComposition && aiDraftState?.currentTeam) {
+      const analysis = mapTeamCompositionToAnalysis(
+        aiResponse.teamComposition,
+        aiDraftState.currentTeam,
+      );
+      const { blueTeamAnalysis: blue, redTeamAnalysis: red } =
+        useDraftStore.getState();
+      setTeamAnalysis(
+        aiDraftState.currentTeam === "blue" ? analysis : blue,
+        aiDraftState.currentTeam === "red" ? analysis : red,
+      );
+    }
+  }, [aiResponse, aiDraftState?.currentTeam, setRecommendations, setTeamAnalysis]);
 
   if (isComplete) {
     return (
@@ -220,9 +219,7 @@ export function RecommendationPanel({
     );
   }
 
-  const teamComp = aiResponse?.teamComposition;
-  const tips = aiResponse?.tips || [];
-  const recommendations = aiResponse?.recommendations || [];
+  const recommendations = (aiResponse?.recommendations || []).slice(0, 5);
 
   return (
     <div className="flex flex-col h-full bg-card rounded-xl border border-border-subtle overflow-hidden">
@@ -256,10 +253,10 @@ export function RecommendationPanel({
         </div>
       </div>
 
-      {/* Main Content - Two Column Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Column - Recommendations */}
-        <div className="flex-1 overflow-auto border-r border-border-subtle">
+      {/* Main Content - Recommendations fill left; Composition on right */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Recommendations - fills all horizontal and vertical space */}
+        <div className="flex-1 min-w-0 overflow-auto flex flex-col">
           {/* Loading overlay */}
           {isLoading && (
             <div className="absolute inset-0 bg-card/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
@@ -294,238 +291,6 @@ export function RecommendationPanel({
               <p className="text-sm">Waiting for draft to start...</p>
             </div>
           ) : null}
-        </div>
-
-        {/* Right Column - Strategic Insights & Composition */}
-        <div className="w-[280px] flex-shrink-0 flex flex-col overflow-hidden bg-muted/5">
-          {/* Tips Section */}
-          <div className="p-3 border-b border-border-subtle flex-shrink-0">
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-semibold text-foreground">
-                Strategic Tips
-              </span>
-            </div>
-            <div className="space-y-2">
-              {tips.length > 0 ? (
-                tips.slice(0, 4).map((tip, idx) => {
-                  const sourceBadge = getSourceBadge(tip.source);
-                  return (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "flex items-start gap-2 px-2 py-1.5 rounded border text-xs",
-                        getTipStyles(tip.type),
-                      )}
-                    >
-                      <span className="mt-0.5 flex-shrink-0">
-                        {getTipIcon(tip.type)}
-                      </span>
-                      <span className="flex-1 leading-tight">
-                        {tip.message}
-                      </span>
-                      {sourceBadge && (
-                        <span
-                          className={cn(
-                            "px-1 text-[9px] font-bold rounded flex-shrink-0",
-                            sourceBadge.color,
-                          )}
-                        >
-                          {sourceBadge.label}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-xs text-muted-foreground text-center py-2">
-                  Tips will appear as draft progresses
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Team Composition Analysis */}
-          <div className="flex-1 overflow-auto p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              <span className="text-xs font-semibold text-foreground">
-                Team Composition
-              </span>
-            </div>
-
-            {teamComp ? (
-              <div className="space-y-4">
-                {/* Composition Type */}
-                <div className="p-2 rounded-lg bg-card border border-border-subtle">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-foreground capitalize">
-                      {teamComp.type}
-                    </span>
-                    {teamComp.weaknesses && teamComp.weaknesses.length > 0 && (
-                      <span className="text-[9px] text-amber-400 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        {teamComp.weaknesses[0]}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {teamComp.strengths?.map((s, i) => (
-                      <span
-                        key={i}
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Damage Distribution */}
-                <div>
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Damage Balance
-                  </span>
-                  <div className="mt-2 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 text-[10px] font-bold text-purple-400">
-                        AP
-                      </span>
-                      <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all"
-                          style={{ width: `${teamComp.damageBalance.ap}%` }}
-                        />
-                      </div>
-                      <span className="w-8 text-[10px] font-bold text-purple-400 text-right">
-                        {teamComp.damageBalance.ap}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 text-[10px] font-bold text-orange-400">
-                        AD
-                      </span>
-                      <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all"
-                          style={{ width: `${teamComp.damageBalance.ad}%` }}
-                        />
-                      </div>
-                      <span className="w-8 text-[10px] font-bold text-orange-400 text-right">
-                        {teamComp.damageBalance.ad}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Team Attributes */}
-                <div>
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    Attributes
-                  </span>
-                  <div className="mt-2 space-y-2">
-                    {teamComp.engageLevel !== undefined && (
-                      <div className="flex items-center gap-2">
-                        <Swords className="w-3.5 h-3.5 text-red-400" />
-                        <span className="w-12 text-[10px] text-muted-foreground">
-                          Engage
-                        </span>
-                        <div className="flex-1 flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map((level) => (
-                            <div
-                              key={level}
-                              className={cn(
-                                "flex-1 h-2 rounded-sm transition-all",
-                                level <= (teamComp.engageLevel || 0) / 20
-                                  ? "bg-red-400"
-                                  : "bg-muted/30",
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {teamComp.peelLevel !== undefined && (
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-3.5 h-3.5 text-blue-400" />
-                        <span className="w-12 text-[10px] text-muted-foreground">
-                          Peel
-                        </span>
-                        <div className="flex-1 flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map((level) => (
-                            <div
-                              key={level}
-                              className={cn(
-                                "flex-1 h-2 rounded-sm transition-all",
-                                level <= (teamComp.peelLevel || 0) / 20
-                                  ? "bg-blue-400"
-                                  : "bg-muted/30",
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Power Spikes */}
-                {teamComp.powerSpikes && teamComp.powerSpikes.length > 0 && (
-                  <div>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Power Spikes
-                    </span>
-                    <div className="mt-2 flex gap-1">
-                      {teamComp.powerSpikes.map((spike, i) => (
-                        <span
-                          key={i}
-                          className={cn(
-                            "px-2 py-1 text-[10px] rounded font-medium",
-                            spike.toLowerCase().includes("early") &&
-                              "bg-green-500/20 text-green-400",
-                            spike.toLowerCase().includes("mid") &&
-                              "bg-amber-500/20 text-amber-400",
-                            spike.toLowerCase().includes("late") &&
-                              "bg-purple-500/20 text-purple-400",
-                          )}
-                        >
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          {spike}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-subtle">
-                  <div className="p-2 rounded bg-card border border-border-subtle text-center">
-                    <Zap className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
-                    <div className="text-[10px] text-muted-foreground">
-                      Burst
-                    </div>
-                    <div className="text-xs font-bold text-foreground">
-                      {teamComp.damageBalance.ap > 50 ? "High" : "Medium"}
-                    </div>
-                  </div>
-                  <div className="p-2 rounded bg-card border border-border-subtle text-center">
-                    <Users className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-                    <div className="text-[10px] text-muted-foreground">
-                      Teamfight
-                    </div>
-                    <div className="text-xs font-bold text-foreground">
-                      {(teamComp.engageLevel || 0) > 50 ? "Strong" : "Moderate"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground text-center py-8">
-                <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                Composition analysis will appear after picks
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

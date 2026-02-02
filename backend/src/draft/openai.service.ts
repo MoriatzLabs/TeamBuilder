@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { SampleMatchesService } from '../sample-matches/sample-matches.service';
+import {
+  SampleMatchesService,
+  TopChampionStats,
+} from '../sample-matches/sample-matches.service';
 
 export interface PlayerData {
   name: string;
@@ -54,6 +57,17 @@ export interface DraftTip {
   source?: 'grid' | 'ai' | 'meta';
 }
 
+/** Top performing champs sent with recommendations: ban = opponent side, pick = side for which rec is made */
+export interface TopPerformingChampionsPayload {
+  phase: 'ban' | 'pick';
+  forTeam: 'blue' | 'red';
+  byPlayer: Array<{
+    playerName: string;
+    role: string;
+    champions: TopChampionStats[];
+  }>;
+}
+
 export interface AIAnalysisResponse {
   recommendations: AIRecommendation[];
   analysis: string;
@@ -67,6 +81,8 @@ export interface AIAnalysisResponse {
     engageLevel: number;
     peelLevel: number;
   };
+  /** Ban phase: opponent's top champs. Pick phase: our team's top champs (unfilled roles). */
+  topPerformingChampions?: TopPerformingChampionsPayload;
 }
 
 // Cache for recommendations
@@ -106,6 +122,93 @@ export class OpenAIService {
     return `${state.phase}-${state.currentTeam}-${state.pickNumber}-${state.blueTeam.bans.join(',')}-${state.redTeam.bans.join(',')}-${state.blueTeam.picks.map((p) => p.champion).join(',')}-${state.redTeam.picks.map((p) => p.champion).join(',')}`;
   }
 
+  /** Normalize champion name for comparison (lowercase, no spaces/special chars). */
+  private normalizeChampId(name: string): string {
+    return name.toLowerCase().replace(/['\s]/g, '');
+  }
+
+  /** Set of champion ids that are already picked or banned (cannot be recommended). */
+  private getUnavailableChampIds(state: DraftStateForAI): Set<string> {
+    const { blueTeam, redTeam } = state;
+    return new Set([
+      ...blueTeam.bans.map((b) => this.normalizeChampId(b)),
+      ...redTeam.bans.map((b) => this.normalizeChampId(b)),
+      ...blueTeam.picks.map((p) => this.normalizeChampId(p.champion)),
+      ...redTeam.picks.map((p) => this.normalizeChampId(p.champion)),
+    ]);
+  }
+
+  /**
+   * Build top performing champs for the recommendation response.
+   * Ban phase: opponent side (unfilled roles). Pick phase: side for which rec is being made (unfilled roles).
+   * Excludes already picked/banned champs so they are not suggested.
+   */
+  private buildTopPerformingChampions(
+    state: DraftStateForAI,
+  ): TopPerformingChampionsPayload {
+    const { phase, currentTeam, blueTeam, redTeam } = state;
+    const activeTeam = currentTeam === 'blue' ? blueTeam : redTeam;
+    const enemyTeam = currentTeam === 'blue' ? redTeam : blueTeam;
+    const filledRoles = activeTeam.picks.map((p) => p.role);
+    const enemyFilledRoles = enemyTeam.picks.map((p) => p.role);
+    const allRoles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
+    const unfilledRoles = allRoles.filter((r) => !filledRoles.includes(r));
+    const enemyUnfilledRoles = allRoles.filter(
+      (r) => !enemyFilledRoles.includes(r),
+    );
+
+    const unavailable = this.getUnavailableChampIds(state);
+    const limit = 5;
+    const fetchLimit = 20; // fetch extra so after excluding picked/banned we still have up to 5
+
+    const filterAvailable = (champions: TopChampionStats[]) =>
+      champions
+        .filter((c) => !unavailable.has(this.normalizeChampId(c.champion)))
+        .slice(0, limit);
+
+    if (phase === 'ban') {
+      const teamName = enemyTeam.name;
+      const byPlayer = enemyTeam.players
+        .filter((p) => enemyUnfilledRoles.includes(p.role))
+        .map((p) => ({
+          playerName: p.name,
+          role: p.role,
+          champions: filterAvailable(
+            this.sampleMatches.getTopChampionsWithStats(
+              teamName,
+              p.name,
+              fetchLimit,
+            ),
+          ),
+        }));
+      return {
+        phase: 'ban',
+        forTeam: currentTeam === 'blue' ? 'red' : 'blue',
+        byPlayer,
+      };
+    }
+    // pick: our side, unfilled roles
+    const teamName = activeTeam.name;
+    const byPlayer = activeTeam.players
+      .filter((p) => unfilledRoles.includes(p.role))
+      .map((p) => ({
+        playerName: p.name,
+        role: p.role,
+        champions: filterAvailable(
+          this.sampleMatches.getTopChampionsWithStats(
+            teamName,
+            p.name,
+            fetchLimit,
+          ),
+        ),
+      }));
+    return {
+      phase: 'pick',
+      forTeam: currentTeam,
+      byPlayer,
+    };
+  }
+
   private parseAndNormalizeResponse(content: string): AIAnalysisResponse {
     const parsed = JSON.parse(content) as AIAnalysisResponse;
     parsed.recommendations = parsed.recommendations.map((rec) => ({
@@ -129,12 +232,16 @@ export class OpenAIService {
   async getRecommendations(
     draftState: DraftStateForAI,
   ): Promise<AIAnalysisResponse> {
+    const topPerformingChampions =
+      this.buildTopPerformingChampions(draftState);
+
     // Check cache first
     const cacheKey = this.getCacheKey(draftState);
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
       this.logger.debug('Returning cached recommendations');
-      return cached.response;
+      const response = { ...cached.response, topPerformingChampions };
+      return response;
     }
 
     if (!this.openai) {
@@ -182,7 +289,8 @@ export class OpenAIService {
           finish_reason: finishReason,
           choicesLength: completion.choices?.length ?? 0,
         });
-        return this.getMockRecommendations(draftState);
+        const mock = this.getMockRecommendations(draftState);
+        return { ...mock, topPerformingChampions };
       }
 
       if (finishReason === 'length') {
@@ -191,7 +299,7 @@ export class OpenAIService {
 
       const parsed = this.parseAndNormalizeResponse(content);
       this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
-      return parsed;
+      return { ...parsed, topPerformingChampions };
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       const isUnknownModel =
@@ -208,14 +316,15 @@ export class OpenAIService {
           if (fallbackContent && String(fallbackContent).trim()) {
             const parsed = this.parseAndNormalizeResponse(fallbackContent);
             this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
-            return parsed;
+            return { ...parsed, topPerformingChampions };
           }
         } catch (fallbackError) {
           this.logger.error('Fallback model also failed', fallbackError);
         }
       }
       this.logger.error('OpenAI API error, falling back to mock', error);
-      return this.getMockRecommendations(draftState);
+      const mock = this.getMockRecommendations(draftState);
+      return { ...mock, topPerformingChampions };
     }
   }
 
@@ -223,17 +332,20 @@ export class OpenAIService {
   async *streamRecommendations(
     draftState: DraftStateForAI,
   ): AsyncGenerator<Partial<AIAnalysisResponse>> {
+    const topPerformingChampions =
+      this.buildTopPerformingChampions(draftState);
+
     // First yield cached/mock data immediately
     const cacheKey = this.getCacheKey(draftState);
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      yield cached.response;
+      yield { ...cached.response, topPerformingChampions };
       return;
     }
 
     // Yield mock data immediately while waiting for OpenAI
     const mockData = this.getMockRecommendations(draftState);
-    yield mockData;
+    yield { ...mockData, topPerformingChampions };
 
     if (!this.openai) {
       return;
@@ -276,7 +388,7 @@ export class OpenAIService {
         }));
 
         this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
-        yield parsed;
+        yield { ...parsed, topPerformingChampions };
       }
     } catch (error) {
       this.logger.error('OpenAI streaming error', error);
@@ -307,7 +419,7 @@ JSON shape (keep output SHORT to fit token limit):
   "teamComposition": {"type":"teamfight"|"poke"|"mixed","strengths":["one"],"weaknesses":["one"],"damageBalance":{"ap":50,"ad":50,"true":0},"powerSpikes":["mid"],"engageLevel":50,"peelLevel":50}
 }
 
-RULES: PICKS=recommend for ALL unfilled roles with forRole/forPlayer. BANS=only unfilled enemy roles. Prefer top-performing champs from the match data when given. Return 4-6 recommendations. 1-2 tips. Keep reasons under 6 words.`;
+RULES: PICKS=recommend for ALL unfilled roles with forRole/forPlayer. BANS=only unfilled enemy roles. Prefer top-performing champs from the match data when given. Return exactly 5 recommendations. Return 0 tips. Keep reasons short (under 6 words each); reasons are shown in tooltips.`;
   }
 
   private buildPrompt(state: DraftStateForAI): string {
@@ -339,8 +451,16 @@ Your team's unfilled roles: ${unfilledRoles.join(', ') || 'ALL FILLED'}
 Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
 `;
 
+    const unavailable = this.getUnavailableChampIds(state);
     const formatTopChamps = (name: string, teamName: string): string => {
-      const top = this.sampleMatches.getTopChampionsWithStats(teamName, name, 5);
+      const raw = this.sampleMatches.getTopChampionsWithStats(
+        teamName,
+        name,
+        20,
+      );
+      const top = raw
+        .filter((t) => !unavailable.has(this.normalizeChampId(t.champion)))
+        .slice(0, 5);
       if (top.length === 0) return '';
       return top
         .map(
@@ -582,7 +702,7 @@ Recommend bans that target enemy comfort picks.`;
     }
 
     return {
-      recommendations: recommendations.slice(0, 15),
+      recommendations: recommendations.slice(0, 5),
       analysis: `Ban phase - targeting ${enemyTeam.name}'s unfilled roles: ${enemyUnfilledRoles.join(', ')}.`,
       tips,
       teamComposition: this.calculateTeamComposition(activeTeam),
@@ -711,7 +831,7 @@ Recommend bans that target enemy comfort picks.`;
     }
 
     return {
-      recommendations: recommendations.slice(0, 8),
+      recommendations: recommendations.slice(0, 5),
       analysis: `Pick phase - recommending for ${unfilledRoles.join(', ')}. Choose based on team needs.`,
       tips,
       teamComposition: composition,

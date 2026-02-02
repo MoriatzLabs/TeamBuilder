@@ -229,10 +229,16 @@ export function RecommendationTable({
 
               const isTopPick = index === 0;
 
+              const reasonTooltip =
+                rec.reasons?.length > 0
+                  ? rec.reasons.join(" • ")
+                  : "No reason provided";
+
               return (
                 <div
                   key={`${rec.championId}-${index}`}
                   onClick={() => onSelectChampion(champion)}
+                  title={reasonTooltip}
                   className={cn(
                     "grid grid-cols-[50px_1fr_90px_80px_80px] gap-2 px-4 py-2.5 items-center cursor-pointer transition-all",
                     "hover:bg-muted/40",
