@@ -34,7 +34,7 @@ export const ENEMY_TEAMS: EnemyTeam[] = [
     logo: "/images/FlyQuest.jpg",
     players: [
       { id: "fly-top", name: "Gakgos", realName: "Gakgos", role: "TOP", image: "/images/FlyQuest.jpg", nationality: "US" },
-      { id: "fly-jgl", name: "Gryffin", realName: "Gryffin", role: "JGL", image: "/images/FlyQuest.jpg", nationality: "US" },
+      { id: "fly-jgl", name: "Gryffinn", realName: "Gryffinn", role: "JGL", image: "/images/FlyQuest.jpg", nationality: "US" },
       { id: "fly-mid", name: "Quad", realName: "Quad", role: "MID", image: "/images/FlyQuest.jpg", nationality: "US" },
       { id: "fly-adc", name: "Massu", realName: "Massu", role: "ADC", image: "/images/FlyQuest.jpg", nationality: "KR" },
       { id: "fly-sup", name: "Cryogen", realName: "Cryogen", role: "SUP", image: "/images/FlyQuest.jpg", nationality: "US" },

@@ -162,7 +162,7 @@ export class OpenAIService {
       model,
       systemPromptChars: (messages[0]?.content as string)?.length ?? 0,
       userPromptChars: (messages[1]?.content as string)?.length ?? 0,
-      userPromptPreview: typeof messages[1]?.content === 'string' ? (messages[1].content as string) : '',
+      userPromptPreview: typeof messages[1]?.content === 'string' ? (messages[1].content as string).slice(0, 300) + '...' : '',
       max_completion_tokens: callOptions.max_completion_tokens,
     });
 
@@ -339,8 +339,8 @@ Your team's unfilled roles: ${unfilledRoles.join(', ') || 'ALL FILLED'}
 Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
 `;
 
-    const formatTopChamps = (name: string, role: string, teamName: string): string => {
-      const top = this.sampleMatches.getTopChampionsWithStats(teamName, name, role, 5);
+    const formatTopChamps = (name: string, teamName: string): string => {
+      const top = this.sampleMatches.getTopChampionsWithStats(teamName, name, 5);
       if (top.length === 0) return '';
       return top
         .map(
@@ -356,7 +356,7 @@ Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
       const topChampLines = activeTeam.players
         .filter((p) => unfilledRoles.includes(p.role))
         .map((p) => {
-          const topLine = formatTopChamps(p.name, p.role, ourTeamName);
+          const topLine = formatTopChamps(p.name, ourTeamName);
           const poolLine = `${p.name} (${p.role}): ${p.championPool.slice(0, 5).map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`).join(', ')}`;
           return topLine ? `${poolLine}\n  Top performance (match data): ${topLine}` : poolLine;
         })
@@ -375,7 +375,7 @@ Include recommendations for each unfilled role. Prefer top-performing champs whe
       const enemyTopLines = enemyTeam.players
         .filter((p) => enemyUnfilledRoles.includes(p.role))
         .map((p) => {
-          const topLine = formatTopChamps(p.name, p.role, enemyName);
+          const topLine = formatTopChamps(p.name, enemyName);
           const poolLine = `${p.name} (${p.role}): ${p.championPool.slice(0, 4).map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`).join(', ')}`;
           return topLine ? `${poolLine}\n  Top performance (match data): ${topLine}` : poolLine;
         })

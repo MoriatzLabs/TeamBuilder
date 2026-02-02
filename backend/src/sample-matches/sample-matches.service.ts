@@ -138,31 +138,58 @@ export class SampleMatchesService {
 
   getPlayers(teamName: string): string[] {
     const rows = this.loadData();
+    const resolved = this.resolveTeamName(teamName) || teamName;
     const set = new Set(
-      rows.filter((r) => r.team_name === teamName).map((r) => r.player_name.trim()).filter(Boolean),
+      rows.filter((r) => r.team_name === resolved).map((r) => r.player_name.trim()).filter(Boolean),
     );
     return Array.from(set).sort();
   }
 
+  /** Normalize player name for matching (trim; case-insensitive so "Huhi" matches "huhi" in CSV or API) */
+  private normalizePlayerName(name: string): string {
+    return name.trim();
+  }
+
+  private playerNamesMatch(a: string, b: string): boolean {
+    const x = this.normalizePlayerName(a).toLowerCase();
+    const y = this.normalizePlayerName(b).toLowerCase();
+    return x === y;
+  }
+
+  /**
+   * Get rows for a player by name (and role). Never filter by team – players may have changed teams.
+   */
+  private getRowsForPlayer(
+    rows: SampleMatchRow[],
+    playerName: string,
+    role?: string,
+    csvRole?: string,
+  ): SampleMatchRow[] {
+    const matchPlayer = (r: SampleMatchRow) =>
+      this.playerNamesMatch(r.player_name, playerName);
+    const matchRole = (r: SampleMatchRow) => {
+      if (!role && !csvRole) return true; // No role filter
+      if (csvRole && r.role === csvRole) return true; // Match normalized role (e.g. SUPPORT)
+      if (role && r.role === role) return true; // Match original role (e.g. SUP)
+      return false;
+    };
+
+    return rows.filter((r) => matchPlayer(r) && matchRole(r));
+  }
+
   getChampions(teamName: string, playerName: string): string[] {
     const rows = this.loadData();
+    const playerRows = this.getRowsForPlayer(rows, playerName);
     const set = new Set(
-      rows
-        .filter((r) => r.team_name === teamName && r.player_name.trim() === playerName)
-        .map((r) => r.champion)
-        .filter(Boolean),
+      playerRows.map((r) => r.champion).filter(Boolean),
     );
     return Array.from(set).sort();
   }
 
   getStats(teamName: string, playerName: string, champion: string): SampleMatchStatsRow[] {
     const rows = this.loadData();
-    const filtered = rows.filter(
-      (r) =>
-        r.team_name === teamName &&
-        r.player_name.trim() === playerName &&
-        r.champion === champion,
-    );
+    const playerRows = this.getRowsForPlayer(rows, playerName);
+    const filtered = playerRows.filter((r) => r.champion === champion);
     return filtered.map((r) => {
       const out: Record<string, string> = {};
       STATS_KEYS.forEach((key) => {
@@ -183,30 +210,30 @@ export class SampleMatchesService {
     return partial ?? null;
   }
 
-  /** Role in draft is JGL; CSV uses JUNGLE */
+  /** Normalize draft role to CSV role: JGL→JUNGLE, SUP→SUPPORT, ADC→ADC, TOP→TOP, MID→MID */
   private normalizeRoleForCsv(role: string): string {
-    return role === 'JGL' ? 'JUNGLE' : role;
+    const mapping: Record<string, string> = {
+      JGL: 'JUNGLE',
+      SUP: 'SUPPORT',
+      ADC: 'ADC',
+      TOP: 'TOP',
+      MID: 'MID',
+    };
+    return mapping[role] || role;
   }
 
   /**
    * Top N champions for a player by performance (win rate, KDA, gold earned).
+   * Look up by player name only – no role filter; players may have changed teams/lanes.
    * Includes win_rate, kda, first_tower, game_duration, gold_earned; first_dragon for junglers only.
    */
   getTopChampionsWithStats(
     teamName: string,
     playerName: string,
-    role: string,
     limit = 5,
   ): TopChampionStats[] {
-    const resolvedTeam = this.resolveTeamName(teamName);
-    const csvRole = this.normalizeRoleForCsv(role);
     const rows = this.loadData();
-    const playerRows = rows.filter(
-      (r) =>
-        (resolvedTeam ? r.team_name === resolvedTeam : r.team_name === teamName) &&
-        r.player_name.trim() === playerName.trim() &&
-        (r.role === csvRole || r.role === role),
-    );
+    const playerRows = this.getRowsForPlayer(rows, playerName);
     if (playerRows.length === 0) return [];
 
     const byChamp = new Map<
@@ -228,7 +255,7 @@ export class SampleMatchesService {
       row.fdSum += Number(r.first_dragon) || 0;
     }
 
-    const isJungle = csvRole === 'JUNGLE';
+    const isJungle = playerRows.some((r) => r.role === 'JUNGLE');
     const list: TopChampionStats[] = [];
     for (const [champion, agg] of byChamp) {
       const games = agg.n;

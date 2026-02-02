@@ -53,6 +53,21 @@ interface ChampionPoolResponse {
   period: string;
 }
 
+interface TopChampionStats {
+  champion: string;
+  games: number;
+  winRate: number;
+  avgKda: number;
+  avgGoldEarned: number;
+  avgFirstTower: number;
+  avgGameDuration: number;
+  firstDragonPct?: number;
+}
+
+interface TopChampionsResponse {
+  champions: TopChampionStats[];
+}
+
 const POSITION_ICON_BASE =
   "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-champ-select/global/default/svg";
 
@@ -122,6 +137,23 @@ async function fetchChampionPool(
   return response.json();
 }
 
+async function fetchTopChampions(
+  teamName: string,
+  playerName: string,
+): Promise<TopChampionsResponse> {
+  const url = `/api/sample-matches/top-champions?team=${encodeURIComponent(teamName)}&player=${encodeURIComponent(playerName)}&limit=5`;
+  console.log("Fetching top champions from:", url);
+  const response = await fetch(url);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Top champions API error:", response.status, errorText);
+    throw new Error(`Failed to fetch top champions: ${response.status} ${errorText}`);
+  }
+  const data = await response.json();
+  console.log("Top champions response:", data);
+  return data;
+}
+
 export function TeamSetupScreen() {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [enemySelectedIndex, setEnemySelectedIndex] = useState<number>(0);
@@ -146,6 +178,7 @@ export function TeamSetupScreen() {
     setEnemyTeam,
     setC9Players,
     setCurrentView,
+    setChampionStatsContext,
   } = useAppStore();
 
   const { data, isLoading, error } = useQuery({
@@ -193,10 +226,38 @@ export function TeamSetupScreen() {
     enabled: !!selectedPlayer,
   });
 
+  const c9TeamName = data?.team?.name ?? "Cloud9";
+  const c9TopQueryEnabled = !!selectedPlayer && !!selectedPlayer.name;
+
+  const {
+    data: c9TopChampionsData,
+    error: c9TopChampionsError,
+    isLoading: c9TopChampionsLoading,
+  } = useQuery({
+    queryKey: ["c9-top-champions", c9TeamName, selectedPlayer?.name],
+    queryFn: () => fetchTopChampions(c9TeamName, selectedPlayer!.name),
+    enabled: c9TopQueryEnabled,
+    onError: (err) => {
+      console.error("Error fetching C9 top champions:", err);
+    },
+  });
+
   const { data: enemyChampionPoolData } = useQuery({
     queryKey: ["enemy-champion-pool", selectedEnemyPlayer?.id, timePeriod],
     queryFn: () => fetchChampionPool(selectedEnemyPlayer!.id, timePeriod),
     enabled: !!selectedEnemyPlayer,
+  });
+
+  const queryEnabled = !!enemyTeam && !!selectedEnemyPlayer && !!selectedEnemyPlayer.name;
+
+  const { data: enemyTopChampionsData, error: topChampionsError, isLoading: topChampionsLoading } = useQuery({
+    queryKey: ["enemy-top-champions", enemyTeam?.name, selectedEnemyPlayer?.name],
+    queryFn: () =>
+      fetchTopChampions(enemyTeam!.name, selectedEnemyPlayer!.name),
+    enabled: queryEnabled,
+    onError: (err) => {
+      console.error("Error fetching top champions:", err);
+    },
   });
 
   useEffect(() => {
@@ -446,7 +507,49 @@ export function TeamSetupScreen() {
               </div>
             </div>
 
-            {championPool.length > 0 && (
+            {c9TopChampionsLoading && (
+              <div className="mt-6 text-center">
+                <p className="text-xs text-muted-foreground">Loading top champions...</p>
+              </div>
+            )}
+            {c9TopChampionsError && (
+              <div className="mt-6 text-center">
+                <p className="text-xs text-destructive">Error loading top champions: {String(c9TopChampionsError)}</p>
+              </div>
+            )}
+            {c9TopChampionsData?.champions && c9TopChampionsData.champions.length > 0 && (
+              <div className="mt-6">
+                <p className="text-xs text-muted-foreground text-center mb-3">
+                  Top Champions (Match Data) - {selectedPlayer?.name}
+                </p>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {c9TopChampionsData.champions.map((champ) => (
+                    <TopChampionIcon
+                      key={champ.champion}
+                      champion={champ}
+                      teamName={c9TeamName}
+                      playerName={selectedPlayer!.name}
+                      role={selectedPlayer!.role}
+                      onChampionClick={(champion) => {
+                        setChampionStatsContext({
+                          teamName: c9TeamName,
+                          playerName: selectedPlayer!.name,
+                          champion,
+                          role: selectedPlayer!.role,
+                        });
+                        setCurrentView("champion-stats");
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {!c9TopChampionsLoading && !c9TopChampionsError && c9TopQueryEnabled && c9TopChampionsData?.champions?.length === 0 && selectedPlayer && (
+              <div className="mt-6 text-center">
+                <p className="text-xs text-muted-foreground">No match data found for {selectedPlayer.name}</p>
+              </div>
+            )}
+            {championPool.length > 0 && !(c9TopChampionsData?.champions?.length) && (
               <div className="mt-6">
                 <p className="text-xs text-muted-foreground text-center mb-3">
                   Champion Pool - {selectedPlayer?.name}
@@ -563,9 +666,53 @@ export function TeamSetupScreen() {
                 </div>
               </div>
 
-              {enemyChampionPoolData?.championPool &&
-                enemyChampionPoolData.championPool.length > 0 && (
+              {topChampionsLoading && (
+                <div className="mt-6 text-center">
+                  <p className="text-xs text-muted-foreground">Loading top champions...</p>
+                </div>
+              )}
+              {topChampionsError && (
+                <div className="mt-6 text-center">
+                  <p className="text-xs text-destructive">Error loading top champions: {String(topChampionsError)}</p>
+                </div>
+              )}
+              {enemyTopChampionsData?.champions &&
+                enemyTopChampionsData.champions.length > 0 && (
                   <div className="mt-6">
+                    <p className="text-xs text-muted-foreground text-center mb-3">
+                      Top Champions (Match Data) - {selectedEnemyPlayer?.name}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      {enemyTopChampionsData.champions.map((champ) => (
+                        <TopChampionIcon
+                          key={champ.champion}
+                          champion={champ}
+                          teamName={enemyTeam!.name}
+                          playerName={selectedEnemyPlayer!.name}
+                          role={selectedEnemyPlayer!.role}
+                          onChampionClick={(champion) => {
+                            setChampionStatsContext({
+                              teamName: enemyTeam!.name,
+                              playerName: selectedEnemyPlayer!.name,
+                              champion,
+                              role: selectedEnemyPlayer!.role,
+                            });
+                            setCurrentView("champion-stats");
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              {!topChampionsLoading && !topChampionsError && enemyTopChampionsData?.champions?.length === 0 && (
+                <div className="mt-6 text-center">
+                  <p className="text-xs text-muted-foreground">No match data found for {selectedEnemyPlayer?.name}</p>
+                </div>
+              )}
+              {enemyChampionPoolData?.championPool &&
+                enemyChampionPoolData.championPool.length > 0 &&
+                !(enemyTopChampionsData?.champions?.length) && (
+                  <div className="mt-4">
                     <p className="text-xs text-muted-foreground text-center mb-3">
                       Champion Pool - {selectedEnemyPlayer?.name}
                     </p>
@@ -904,6 +1051,58 @@ function ChampionPoolIcon({ champion }: { champion: ChampionStats }) {
           <span className="block text-center text-[10px] font-medium text-white truncate">
             {champion.champion}
           </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TopChampionIcon({
+  champion,
+  teamName,
+  playerName,
+  role,
+  onChampionClick,
+}: {
+  champion: TopChampionStats;
+  teamName: string;
+  playerName: string;
+  role: string;
+  onChampionClick: (champion: string) => void;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const imageUrl = getChampionImageUrl(champion.champion);
+
+  return (
+    <div
+      className="relative group cursor-pointer"
+      onClick={() => onChampionClick(champion.champion)}
+    >
+      <div className="relative w-[70px] aspect-square rounded-xl overflow-hidden transition-all hover:ring-2 hover:ring-primary/50 hover:scale-105">
+        {!imageError ? (
+          <img
+            src={imageUrl}
+            alt={champion.champion}
+            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground font-semibold text-sm">
+            {champion.champion.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+
+        <div className="absolute bottom-0 left-0 right-0 p-1.5">
+          <span className="block text-center text-[10px] font-bold text-white truncate mb-0.5">
+            {champion.champion}
+          </span>
+          <div className="flex items-center justify-center gap-1 text-[9px] text-white/90">
+            <span className="font-semibold">{champion.winRate.toFixed(0)}%</span>
+            <span className="text-white/60">•</span>
+            <span>{champion.avgKda.toFixed(1)} KDA</span>
+          </div>
         </div>
       </div>
     </div>

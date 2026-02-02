@@ -4,6 +4,7 @@ import { HeroScreen } from "./features/hero/components/HeroScreen";
 import { TeamSetupScreen } from "./features/team-setup/components/TeamSetupScreen";
 import { DraftSimulator } from "./features/draft/components/DraftSimulator";
 import { SampleMatchStatsScreen } from "./features/sample-matches/components/SampleMatchStatsScreen";
+import { ChampionStatsScreen } from "./features/sample-matches/components/ChampionStatsScreen";
 import "./App.css";
 
 const queryClient = new QueryClient({
@@ -25,6 +26,7 @@ function App() {
         {currentView === "team-setup" && <TeamSetupScreen />}
         {currentView === "draft" && <DraftSimulator />}
         {currentView === "sample-stats" && <SampleMatchStatsScreen />}
+        {currentView === "champion-stats" && <ChampionStatsScreen />}
       </div>
     </QueryClientProvider>
   );

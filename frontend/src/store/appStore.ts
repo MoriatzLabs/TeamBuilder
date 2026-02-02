@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppView = "hero" | "team-setup" | "draft" | "sample-stats";
+export type AppView = "hero" | "team-setup" | "draft" | "sample-stats" | "champion-stats";
 
 export type TeamSide = "blue" | "red";
 
@@ -48,6 +48,13 @@ interface AppState {
   c9Players: Player[] | null;
   // 2026 Draft Configuration
   draftConfig: DraftConfig2026 | null;
+  // Champion stats view state
+  championStatsContext: {
+    teamName: string;
+    playerName: string;
+    champion: string;
+    role: string;
+  } | null;
 }
 
 interface AppStore extends AppState {
@@ -62,6 +69,12 @@ interface AppStore extends AppState {
     pickOrder: PickOrderChoice,
     opponentSide: TeamSide,
   ) => void;
+  setChampionStatsContext: (context: {
+    teamName: string;
+    playerName: string;
+    champion: string;
+    role: string;
+  } | null) => void;
   reset: () => void;
 }
 
@@ -71,6 +84,7 @@ const initialState: AppState = {
   enemyTeam: null,
   c9Players: null,
   draftConfig: null,
+  championStatsContext: null,
 };
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -116,6 +130,9 @@ export const useAppStore = create<AppStore>((set) => ({
       draftConfig: config,
       c9Side: config.c9Side,
     }),
+
+  setChampionStatsContext: (context) =>
+    set({ championStatsContext: context }),
 
   reset: () => set(initialState),
 }));

@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { SampleMatchesService, SampleMatchStatsRow } from './sample-matches.service';
+import { SampleMatchesService, SampleMatchStatsRow, TopChampionStats } from './sample-matches.service';
 
 @Controller('sample-matches')
 export class SampleMatchesController {
@@ -43,5 +43,28 @@ export class SampleMatchesController {
       champion ?? '',
     );
     return { stats };
+  }
+
+  @Get('top-champions')
+  getTopChampions(
+    @Query('team') team: string,
+    @Query('player') player: string,
+    @Query('limit') limit?: string,
+  ): { champions: TopChampionStats[] } {
+    console.log('[SampleMatchesController] getTopChampions request:', {
+      team: team ?? '',
+      player: player ?? '',
+      limit: limit ? parseInt(limit, 10) : 5,
+    });
+    const topChampions = this.sampleMatchesService.getTopChampionsWithStats(
+      team ?? '',
+      player ?? '',
+      limit ? parseInt(limit, 10) : 5,
+    );
+    console.log('[SampleMatchesController] getTopChampions response:', {
+      count: topChampions.length,
+      champions: topChampions.map((c) => ({ champion: c.champion, winRate: c.winRate })),
+    });
+    return { champions: topChampions };
   }
 }
