@@ -76,11 +76,11 @@ graph TB
     
     UI --> CDN
     
-    style Cerebras fill:#6366f1
-    style RiotAPI fill:#e11d48
-    style Redis fill:#dc2626
-    style UI fill:#10b981
-    style DraftService fill:#f59e0b
+    style Cerebras fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style RiotAPI fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style Redis fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style UI fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style DraftService fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ## Data Flow
@@ -137,6 +137,7 @@ mindmap
         C9 Roster
         Enemy Team
       Draft Configuration
+        First Selection Rule (2026)
         Side Selection
         Pick Order
       Champion Pools
@@ -169,7 +170,26 @@ mindmap
         Early Game Plan
         Lane Matchups
         Objective Priority
+    
+    style root fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style Pre-Draft fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style Live Draft fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style Post-Draft fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
+
+## 2026 Draft Rules Support
+
+TeamBuilder fully supports the **2026 League of Legends Pro Play Draft Rules**, including the **First Selection Rule**:
+
+- **First Selection Rule**: Teams can now choose either **Side** (Blue/Red) or **Pick Order** (First/Last)
+  - If Team A chooses side, Team B chooses pick order
+  - If Team A chooses pick order, Team B chooses side
+  - This breaks the old meta where Blue side always had first pick
+  - Red side can now have first pick if configured that way
+
+- **Dynamic Draft Sequence**: The draft sequence is automatically generated based on your configuration, ensuring correct pick/ban order regardless of which team has first selection
+
+- **Full Compatibility**: Supports both the new 2026 rules and legacy draft configurations for backwards compatibility
 
 ## Tech Stack
 
@@ -235,7 +255,7 @@ Visit **http://localhost:5173** to see the application.
 ### Quick Start Flow
 
 1. **Select Opponent Team**: Choose from T1, Gen.G, FlyQuest, or other teams
-2. **Configure Draft**: Pick C9's side (Blue/Red) or pick order (First/Last)
+2. **Configure Draft**: Use the 2026 First Selection Rule - choose C9's side (Blue/Red) or pick order (First/Last). The opponent will automatically get the complementary choice.
 3. **Start Draft**: Click "Start Draft" to begin the simulation
 4. **Draft Phase**: 
    - AI recommends 2-3 champions per unfilled role
@@ -306,9 +326,9 @@ graph LR
     Recs --> T3
     Analysis --> T3
     
-    style T1 fill:#10b981
-    style T2 fill:#f59e0b
-    style T3 fill:#ef4444
+    style T1 fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style T2 fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style T3 fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 **Tier 1: Long-lived Cache (24 hours)**
