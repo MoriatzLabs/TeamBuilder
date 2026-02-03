@@ -424,14 +424,6 @@ cd frontend && npm run lint
 cd backend && npm run lint
 ```
 
-## Performance Targets
-
-- ✅ Initial page load: <2 seconds
-- ✅ Draft action response: <100ms
-- ✅ AI inference latency: <1 second (Cerebras)
-- ✅ Cache hit ratio: >80%
-- ✅ Champion image load: <200ms (Riot CDN)
-
 ## Environment Variables
 
 ### Backend (.env)
