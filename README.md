@@ -1,6 +1,6 @@
 # TeamBuilder - Cloud9 League of Legends Draft Tool
 
-A data-driven drafting assistant for professional esports teams, powered by GRID's official esports data platform.
+A data-driven drafting assistant for professional esports teams, powered by AI-enhanced real-time analysis and historical match data.
 
 ## Project Story
 
@@ -16,32 +16,166 @@ TeamBuilder isn't just a draft tracker - it's your scouting department compresse
 
 This is the tool that gets C9 to Worlds. Again.
 
-## Features
+## System Architecture
 
-### Pre-Draft Intelligence
-- **Champion Pool Analysis**: See what each opponent player ACTUALLY plays (last 3 months of data)
-- **Team Tendencies**: Objective priority patterns, early game aggression, playstyle classification
-- **Meta Analysis**: Tournament-wide champion pick/ban rates, patch-specific win rates
-- **Player Profiles**: Role-specific champion mastery, performance trends, playstyle classification
+```mermaid
+graph TB
+    subgraph "Frontend - React + Vite"
+        UI[User Interface]
+        DraftUI[Draft Simulator]
+        ScoutUI[Scouting Dashboard]
+        StatsUI[Champion Stats]
+        
+        UI --> DraftUI
+        UI --> ScoutUI
+        UI --> StatsUI
+    end
+    
+    subgraph "Backend - NestJS"
+        API[REST API]
+        GraphQL[GraphQL API]
+        WS[WebSocket Server]
+        
+        DraftService[Draft Service]
+        AIService[Cerebras AI Service]
+        ChampService[Champion Service]
+        PlayerService[Player Service]
+        
+        API --> DraftService
+        API --> ChampService
+        API --> PlayerService
+        GraphQL --> DraftService
+        WS --> DraftService
+        
+        DraftService --> AIService
+    end
+    
+    subgraph "Data Layer"
+        Redis[(Redis Cache)]
+        CSV[CSV Data Store]
+        CDN[Riot CDN]
+    end
+    
+    subgraph "External Services"
+        Cerebras[Cerebras AI API]
+        RiotAPI[Riot Data Dragon]
+    end
+    
+    DraftUI --> API
+    DraftUI --> GraphQL
+    ScoutUI --> API
+    StatsUI --> API
+    
+    DraftService --> Redis
+    ChampService --> Redis
+    ChampService --> CSV
+    PlayerService --> CSV
+    
+    AIService --> Cerebras
+    ChampService --> RiotAPI
+    
+    UI --> CDN
+    
+    style Cerebras fill:#6366f1
+    style RiotAPI fill:#e11d48
+    style Redis fill:#dc2626
+    style UI fill:#10b981
+    style DraftService fill:#f59e0b
+```
 
-### Live Draft Assistant
-- **Real-time Draft Tracking**: WebSocket integration with GRID Series Events API
-- **Ban Recommendations**: Top 5 ban priorities based on opponent pool and meta data
-- **Pick Recommendations**: Counter-pick suggestions with synergy calculations
-- **Win Probability**: Live composition analysis with win rate predictions
+## Data Flow
 
-### Post-Draft Strategy
-- **Game Plan Generator**: Win condition identification and macro strategy recommendations
-- **Power Spike Timeline**: Level and item breakpoint analysis
-- **Objective Priorities**: Drake/Baron/Herald trade-off analysis
-- **Game Style Classification**: Composition type identification (teamfight, split push, poke, dive)
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant AI as Cerebras AI
+    participant Cache as Redis
+    participant Data as CSV/CDN
+    
+    User->>Frontend: Start Draft
+    Frontend->>Backend: POST /api/draft/init
+    Backend->>Cache: Check cached champions
+    alt Cache Hit
+        Cache-->>Backend: Return cached data
+    else Cache Miss
+        Backend->>Data: Load champion data
+        Data-->>Backend: Champion list
+        Backend->>Cache: Store in cache (24h)
+    end
+    Backend-->>Frontend: Draft initialized
+    
+    loop Each Pick/Ban Phase
+        User->>Frontend: Select champion
+        Frontend->>Backend: POST /api/draft/recommendations
+        Backend->>Cache: Check cached recommendations
+        alt Cache Miss
+            Backend->>AI: Get AI recommendations
+            AI-->>Backend: Top 5 picks/bans
+            Backend->>Cache: Cache recommendations (5m)
+        end
+        Backend-->>Frontend: Recommendations + Analysis
+        Frontend-->>User: Display recommendations
+    end
+    
+    User->>Frontend: Complete Draft
+    Frontend->>Backend: POST /api/draft/strategy
+    Backend->>AI: Generate post-draft strategy
+    AI-->>Backend: Win conditions + game plan
+    Backend-->>Frontend: Strategy report
+    Frontend-->>User: Display strategy
+```
+
+## Features Overview
+
+```mermaid
+mindmap
+  root((TeamBuilder))
+    Pre-Draft
+      Team Selection
+        C9 Roster
+        Enemy Team
+      Draft Configuration
+        Side Selection
+        Pick Order
+      Champion Pools
+        Top Champions
+        Win Rates
+        KDA Stats
+    Live Draft
+      Real-time Recommendations
+        AI-Powered Picks
+        AI-Powered Bans
+        Synergy Analysis
+      Draft Tracking
+        Pick/Ban History
+        Phase Indicator
+        Team Composition
+      Champion Grid
+        Search & Filter
+        Role-based View
+        Quick Select
+    Post-Draft
+      Team Analysis
+        Composition Type
+        Damage Profile
+        Power Spikes
+      Win Conditions
+        Priority Ranking
+        Execution Steps
+        Key Players
+      Strategy Report
+        Early Game Plan
+        Lane Matchups
+        Objective Priority
+```
 
 ## Tech Stack
 
 ### Frontend
 - **React 18** with TypeScript
 - **Vite** for ultra-fast build and HMR
-- **Apollo Client** for GraphQL queries
 - **Zustand** for lightweight state management
 - **TanStack Query** for server state caching
 - **TailwindCSS** for styling
@@ -50,154 +184,209 @@ This is the tool that gets C9 to Worlds. Again.
 
 ### Backend
 - **NestJS** with TypeScript
-- **GraphQL** (Apollo Server) for API
+- **Cerebras AI** for lightning-fast LLM inference
 - **Redis** for intelligent caching
-- **WebSocket** proxy for real-time events
-- **GRID API** for official esports data
+- **CSV Parser** for match data processing
+- **REST API** for data operations
 
 ### Infrastructure
-- **Docker** for Redis and PostgreSQL
-- **Docker Compose** for local development
+- **Docker** for Redis container
+- **Riot Data Dragon CDN** for champion assets
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
-- Docker and Docker Compose
-- GRID API Key (get from https://grid.gg/)
+- Docker Desktop
+- Cerebras API Key (get from https://cerebras.ai/)
 
 ### Installation
 
-1. Clone the repository
 ```bash
+# 1. Clone the repository
 git clone https://github.com/yourusername/teambuilder.git
 cd teambuilder
-```
 
-2. Setup environment variables
-```bash
-# Frontend
-cp frontend/.env.example frontend/.env.local
+# 2. Install dependencies
+npm install
 
-# Backend
+# 3. Setup environment variables
 cp backend/.env.example backend/.env
-# Edit backend/.env and add your GRID_API_KEY
-```
+# Edit backend/.env and add your CEREBRAS_API_KEY
 
-3. Start infrastructure (Redis, PostgreSQL)
-```bash
-docker-compose up -d
-```
+# 4. Start Redis (required for caching)
+docker run -d -p 6379:6379 --name teambuilder-redis redis:alpine
 
-4. Install dependencies
-```bash
-# Frontend
-cd frontend
-npm install
-
-# Backend
+# 5. Start backend server (Terminal 1)
 cd backend
 npm install
-```
-
-5. Run development servers
-```bash
-# Terminal 1 - Frontend (port 5173)
-cd frontend
-npm run dev
-
-# Terminal 2 - Backend (port 3000)
-cd backend
 npm run start:dev
+# Backend runs on http://localhost:3000
+
+# 6. Start frontend dev server (Terminal 2)
+cd frontend
+npm install
+npm run dev
+# Frontend runs on http://localhost:5173
 ```
 
-Visit http://localhost:5173 to see the application.
+Visit **http://localhost:5173** to see the application.
+
+### Quick Start Flow
+
+1. **Select Opponent Team**: Choose from T1, Gen.G, FlyQuest, or other teams
+2. **Configure Draft**: Pick C9's side (Blue/Red) or pick order (First/Last)
+3. **Start Draft**: Click "Start Draft" to begin the simulation
+4. **Draft Phase**: 
+   - AI recommends 2-3 champions per unfilled role
+   - Click a champion to select it
+   - Press Enter or click "Lock in Pick/Ban"
+5. **Post-Draft Strategy**: Automatically shown after draft completes
+   - View win conditions, team analysis, and game plan
+   - Click "Draft Again" to start a new draft
 
 ## Project Structure
 
 ```
 TeamBuilder/
-├── frontend/                 # React + Vite application
+├── frontend/                      # React + Vite application
 │   ├── src/
-│   │   ├── features/        # Feature modules (draft, scouting, gameplan)
-│   │   ├── api/             # GraphQL and WebSocket clients
-│   │   ├── shared/          # Utilities, hooks, constants
-│   │   └── types/           # TypeScript type definitions
-│   ├── vite.config.ts
+│   │   ├── features/
+│   │   │   ├── draft/            # Draft simulator with AI recommendations
+│   │   │   │   ├── components/   # Draft UI components
+│   │   │   │   ├── store/        # Zustand state management
+│   │   │   │   ├── hooks/        # React hooks for AI integration
+│   │   │   │   └── types/        # TypeScript types
+│   │   │   ├── scouting/         # Player & team analysis
+│   │   │   ├── sample-matches/   # Champion statistics from matches
+│   │   │   └── team-setup/       # Pre-draft team selection
+│   │   ├── store/                # Global app state
+│   │   ├── utils/                # Champion image mapper, utilities
+│   │   └── components/ui/        # Reusable UI components
 │   └── package.json
 │
-├── backend/                  # NestJS application
+├── backend/                       # NestJS application
 │   ├── src/
-│   │   ├── grid/            # GRID API clients and integration
-│   │   ├── cache/           # Redis caching strategies
-│   │   ├── draft/           # Draft logic and recommendations
-│   │   ├── scouting/        # Team/player analysis
-│   │   ├── gameplan/        # Post-draft analysis
-│   │   ├── graphql/         # GraphQL API
-│   │   └── config/          # Configuration
-│   ├── nest-cli.json
+│   │   ├── draft/                # Draft logic & AI integration
+│   │   │   ├── draft.controller.ts      # REST endpoints
+│   │   │   ├── draft.service.ts         # Business logic
+│   │   │   └── cerebras.service.ts      # AI service
+│   │   ├── champions/            # Champion data management
+│   │   ├── players/              # Player & team data
+│   │   ├── sample-matches/       # Match statistics processing
+│   │   └── config/               # Configuration
+│   ├── data/                     # CSV data files
+│   │   └── sample_matches.csv    # Match data for statistics
 │   └── package.json
 │
-├── docker-compose.yml       # Redis and PostgreSQL services
 └── README.md
 ```
 
 ## Caching Strategy
 
-The application uses a 3-tier caching approach to respect GRID's rate limits (20 req/min):
+```mermaid
+graph LR
+    subgraph "Cache Tiers"
+        T1[Long-lived<br/>24h TTL]
+        T2[Medium-lived<br/>1h TTL]
+        T3[Short-lived<br/>5m TTL]
+    end
+    
+    subgraph "Data Types"
+        Champions[Champion List]
+        Players[Player Pools]
+        Matches[Match Stats]
+        Recs[AI Recommendations]
+        Analysis[Team Analysis]
+    end
+    
+    Champions --> T1
+    Players --> T2
+    Matches --> T2
+    Recs --> T3
+    Analysis --> T3
+    
+    style T1 fill:#10b981
+    style T2 fill:#f59e0b
+    style T3 fill:#ef4444
+```
 
-**Tier 1: Long-lived Cache (Redis)**
-- Team statistics (3 months): 6 hours TTL
-- Player statistics (3 months): 6 hours TTL
-- Meta statistics (patch-specific): 24 hours TTL
-- Champion data: Never expires
+**Tier 1: Long-lived Cache (24 hours)**
+- Champion data (170+ champions, rarely changes)
+- Static assets and configurations
 
-**Tier 2: Medium-lived Cache (Redis)**
-- Team statistics (1 month): 1 hour TTL
-- Recent match data: 30 minutes TTL
+**Tier 2: Medium-lived Cache (1 hour)**
+- Player champion pools
+- Team rosters and metadata
+- Historical match statistics
 
-**Tier 3: Short-lived Cache (In-memory)**
-- Live draft state: No expiration (WebSocket sync)
-- Session data: 5 minutes TTL
+**Tier 3: Short-lived Cache (5 minutes)**
+- AI recommendations (context-dependent)
+- Team composition analysis
+- Real-time draft state
 
-## API Documentation
+## API Endpoints
 
-The GRID API documentation is available in the following files:
-- `GRID_API_KNOWLEDGE_HUB.md` - Core concepts and best practices
-- `GRID_LOL_API_REFERENCE.md` - Central Data API queries
-- `GRID_LOL_SERIES_STATE_API.md` - Live match data
-- `GRID_LOL_SERIES_EVENTS_API.md` - WebSocket events
-- `GRID_LOL_STATS_FEED_API.md` - Aggregated statistics
+### Draft Endpoints
+```
+POST   /api/draft/recommendations    # Get AI pick/ban recommendations
+POST   /api/draft/strategy           # Get post-draft strategy analysis
+```
 
-## Performance Targets
+### Champion Endpoints
+```
+GET    /api/champions                # Get all champions
+GET    /api/champions/:id            # Get champion by ID
+```
 
-- Initial page load: <2 seconds
-- Draft action response: <100ms
-- WebSocket latency: <50ms
-- Cache hit ratio: >80%
-- API rate limit compliance: 100%
+### Player Endpoints
+```
+GET    /api/players/c9               # Get C9 roster
+GET    /api/players/:id/champion-pool   # Get player's champion pool
+```
+
+### Match Statistics
+```
+GET    /api/sample-matches/top-champions   # Get top champions by win rate
+GET    /api/sample-matches/player-stats    # Get player statistics
+```
+
+## AI Integration
+
+The application uses **Cerebras AI** for ultra-fast inference (sub-second responses):
+
+**Capabilities:**
+- Real-time pick/ban recommendations based on draft state
+- Team composition analysis (damage profile, power spikes)
+- Win condition generation
+- Lane matchup analysis
+- Counter-pick suggestions with synergy calculations
+
+**Model:** `llama-3.3-70b` (fastest LLM inference available)
+
+**Prompt Engineering:**
+- Dynamic system prompts based on draft phase
+- Context includes: team comp, enemy comp, available champions, player pools
+- Output parsing with fallback to mock data for reliability
 
 ## Development
 
 ### Build
 ```bash
-# Frontend
+# Frontend production build
 cd frontend && npm run build
 
-# Backend
+# Backend production build
 cd backend && npm run build
 ```
 
-### Testing
+### Type Checking
 ```bash
-# Backend tests
-cd backend && npm run test
+# Frontend
+cd frontend && npx tsc --noEmit
 
-# Backend e2e tests
-cd backend && npm run test:e2e
-
-# Type checking
-cd frontend && npm run type-check
+# Backend
+cd backend && npx tsc --noEmit
 ```
 
 ### Linting
@@ -209,16 +398,85 @@ cd frontend && npm run lint
 cd backend && npm run lint
 ```
 
+## Performance Targets
+
+- ✅ Initial page load: <2 seconds
+- ✅ Draft action response: <100ms
+- ✅ AI inference latency: <1 second (Cerebras)
+- ✅ Cache hit ratio: >80%
+- ✅ Champion image load: <200ms (Riot CDN)
+
+## Environment Variables
+
+### Backend (.env)
+```env
+# Cerebras AI
+CEREBRAS_API_KEY=your_api_key_here
+
+# Redis Cache
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Server
+PORT=3000
+NODE_ENV=development
+```
+
+### Frontend (.env.local)
+```env
+# Backend API
+VITE_API_URL=http://localhost:3000
+```
+
 ## Deployment
 
-The application is designed to be deployed on any modern cloud platform (AWS, GCP, Azure, etc.) using Docker.
-
+### Docker Deployment
 ```bash
-# Build Docker images
+# Build images
 docker build -t teambuilder-frontend ./frontend
 docker build -t teambuilder-backend ./backend
 
-# Deploy to your platform
+# Run with Docker Compose
+docker-compose up -d
+```
+
+### Production Checklist
+- [ ] Set `NODE_ENV=production`
+- [ ] Configure Redis persistence
+- [ ] Set up SSL/TLS certificates
+- [ ] Enable CORS for production domain
+- [ ] Configure rate limiting
+- [ ] Set up monitoring and logging
+- [ ] Configure CDN for static assets
+
+## Troubleshooting
+
+### Common Issues
+
+**Redis Connection Failed**
+```bash
+# Make sure Redis is running
+docker ps | grep redis
+
+# Start Redis if not running
+docker run -d -p 6379:6379 --name teambuilder-redis redis:alpine
+```
+
+**Champion Images Not Loading**
+- The app uses Riot Data Dragon CDN (v16.2.1)
+- Check your internet connection
+- Verify championImageMapper.ts has correct version
+
+**AI Recommendations Slow**
+- Check Cerebras API key is valid
+- Verify network connectivity
+- Check Redis cache is working (should be instant on cache hit)
+
+**TypeScript Errors**
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
 ```
 
 ## Hackathon Info
@@ -239,7 +497,8 @@ MIT
 ## Acknowledgments
 
 - Cloud9 for inspiring competitive excellence
-- GRID for providing official esports data
+- Cerebras AI for blazing-fast LLM inference
+- Riot Games for Data Dragon CDN
 - JetBrains for their excellent development tools
 - The open source community for incredible libraries
 

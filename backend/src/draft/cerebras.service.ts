@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import Cerebras from '@cerebras/cerebras_cloud_sdk';
 import {
   SampleMatchesService,
   TopChampionStats,
@@ -85,6 +85,79 @@ export interface AIAnalysisResponse {
   topPerformingChampions?: TopPerformingChampionsPayload;
 }
 
+/** Input for post-draft strategy analysis */
+export interface FinalDraftState {
+  blueTeam: {
+    name: string;
+    bans: string[];
+    picks: { champion: string; role: string; player: string }[];
+  };
+  redTeam: {
+    name: string;
+    bans: string[];
+    picks: { champion: string; role: string; player: string }[];
+  };
+}
+
+/** Team composition analysis for strategy */
+export interface TeamCompositionAnalysis {
+  type:
+    | 'teamfight'
+    | 'poke'
+    | 'pick'
+    | 'splitpush'
+    | 'siege'
+    | 'skirmish'
+    | 'protect';
+  description: string;
+  strengths: string[];
+  weaknesses: string[];
+  keyChampions: string[];
+  damageProfile: { ap: number; ad: number; true: number };
+  powerSpikes: ('early' | 'mid' | 'late')[];
+  engageTools: string[];
+  disengage: string[];
+}
+
+/** Win condition for a team */
+export interface WinCondition {
+  priority: number;
+  title: string;
+  description: string;
+  howToExecute: string[];
+  keyPlayers: string[];
+}
+
+/** Early game analysis */
+export interface EarlyGameAnalysis {
+  invadeProbability: number;
+  counterInvadeProbability: number;
+  invadeRecommendation: string;
+  jungleMatchup: string;
+  laneMatchups: {
+    lane: string;
+    advantage: 'blue' | 'red' | 'even';
+    description: string;
+  }[];
+  firstObjectivePriority: string;
+}
+
+/** Full post-draft strategy response */
+export interface PostDraftStrategyResponse {
+  blueTeamAnalysis: TeamCompositionAnalysis;
+  redTeamAnalysis: TeamCompositionAnalysis;
+  blueWinConditions: WinCondition[];
+  redWinConditions: WinCondition[];
+  earlyGame: EarlyGameAnalysis;
+  keyMatchups: string[];
+  draftVerdict: {
+    advantage: 'blue' | 'red' | 'even';
+    confidence: number;
+    reasoning: string;
+  };
+  coachingNotes: string[];
+}
+
 // Cache for recommendations
 interface CacheEntry {
   response: AIAnalysisResponse;
@@ -92,29 +165,38 @@ interface CacheEntry {
 }
 
 @Injectable()
-export class OpenAIService {
-  private readonly logger = new Logger(OpenAIService.name);
-  private openai: OpenAI | null = null;
+export class CerebrasService {
+  private readonly logger = new Logger(CerebrasService.name);
+  private cerebras: Cerebras | null = null;
   private cache: Map<string, CacheEntry> = new Map();
   private readonly CACHE_TTL = 60000; // 1 minute cache
 
-  private readonly FALLBACK_MODEL = 'gpt-4o-mini';
+  private readonly DEFAULT_MODEL = 'llama-4-scout-17b-16e-instruct';
 
-  /** Model for recommendations: gpt-5-nano (default), or set OPENAI_MODEL in .env (e.g. gpt-4o-mini) */
+  /** Model for recommendations: configurable via CEREBRAS_MODEL env var */
   private getModel(): string {
-    return this.configService.get<string>('OPENAI_MODEL') || 'gpt-5-nano';
+    return (
+      this.configService.get<string>('CEREBRAS_MODEL') || this.DEFAULT_MODEL
+    );
   }
 
   constructor(
     private configService: ConfigService,
     private sampleMatches: SampleMatchesService,
   ) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    const apiKey = this.configService.get<string>('CEREBRAS_API_KEY');
     if (apiKey) {
-      this.openai = new OpenAI({ apiKey });
-      this.logger.log(`OpenAI client initialized (model: ${this.getModel()})`);
+      this.cerebras = new Cerebras({
+        apiKey,
+        warmTCPConnection: true, // Reduce TTFT with TCP warming
+      });
+      this.logger.log(
+        `Cerebras client initialized (model: ${this.getModel()})`,
+      );
     } else {
-      this.logger.warn('OPENAI_API_KEY not configured - using mock responses');
+      this.logger.warn(
+        'CEREBRAS_API_KEY not configured - using mock responses',
+      );
     }
   }
 
@@ -138,33 +220,22 @@ export class OpenAIService {
     ]);
   }
 
-  /**
-   * Filter recommendations so picks are only for our unfilled roles and bans only for enemy unfilled roles.
-   * Also removes any recommendation for an already picked/banned champion.
-   */
-  private filterRecommendationsByRole(
-    state: DraftStateForAI,
-    recommendations: AIRecommendation[],
-  ): AIRecommendation[] {
-    const { phase, blueTeam, redTeam } = state;
-    const activeTeam = state.currentTeam === 'blue' ? blueTeam : redTeam;
-    const enemyTeam = state.currentTeam === 'blue' ? redTeam : blueTeam;
-    const filledRoles = activeTeam.picks.map((p) => p.role);
-    const enemyFilledRoles = enemyTeam.picks.map((p) => p.role);
+  /** Get count of unfilled roles for the relevant team (pick phase: our team, ban phase: enemy team). */
+  private getUnfilledRolesCount(state: DraftStateForAI): number {
+    const { phase, currentTeam, blueTeam, redTeam } = state;
+    const activeTeam = currentTeam === 'blue' ? blueTeam : redTeam;
+    const enemyTeam = currentTeam === 'blue' ? redTeam : blueTeam;
     const allRoles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
-    const unfilledRoles = allRoles.filter((r) => !filledRoles.includes(r));
-    const enemyUnfilledRoles = allRoles.filter(
-      (r) => !enemyFilledRoles.includes(r),
-    );
-    const unavailable = this.getUnavailableChampIds(state);
 
-    return recommendations.filter((rec) => {
-      if (unavailable.has(rec.championId)) return false;
-      const forRole = rec.forRole;
-      if (!forRole) return true;
-      if (phase === 'pick') return unfilledRoles.includes(forRole);
-      return enemyUnfilledRoles.includes(forRole);
-    });
+    if (phase === 'ban') {
+      // For bans, we target enemy unfilled roles
+      const enemyFilledRoles = enemyTeam.picks.map((p) => p.role);
+      return allRoles.filter((r) => !enemyFilledRoles.includes(r)).length;
+    } else {
+      // For picks, we recommend for our unfilled roles
+      const filledRoles = activeTeam.picks.map((p) => p.role);
+      return allRoles.filter((r) => !filledRoles.includes(r)).length;
+    }
   }
 
   /**
@@ -238,21 +309,82 @@ export class OpenAIService {
     };
   }
 
-  private parseAndNormalizeResponse(content: string): AIAnalysisResponse {
+  private parseAndNormalizeResponse(
+    content: string,
+    draftState?: DraftStateForAI,
+  ): AIAnalysisResponse {
     const parsed = JSON.parse(content) as AIAnalysisResponse;
-    parsed.recommendations = parsed.recommendations.map((rec) => ({
-      ...rec,
-      championId:
-        rec.championId ||
-        rec.championName.toLowerCase().replace(/['\s]/g, ''),
-      flexLanes: rec.flexLanes || [],
-      goodAgainst: rec.goodAgainst || [],
-      badAgainst: rec.badAgainst || [],
-      synergiesWith: rec.synergiesWith || [],
-      teamNeeds: rec.teamNeeds || [],
-      masteryLevel: rec.masteryLevel || 'medium',
-    }));
-    this.logger.debug('OpenAI recommendations received', {
+
+    // Get unavailable champions and valid roles if draft state provided
+    const unavailable = draftState
+      ? this.getUnavailableChampIds(draftState)
+      : new Set<string>();
+
+    const activeTeam =
+      draftState?.currentTeam === 'blue'
+        ? draftState.blueTeam
+        : draftState?.redTeam;
+    const enemyTeam =
+      draftState?.currentTeam === 'blue'
+        ? draftState?.redTeam
+        : draftState?.blueTeam;
+
+    const filledRoles = activeTeam?.picks.map((p) => p.role) || [];
+    const enemyFilledRoles = enemyTeam?.picks.map((p) => p.role) || [];
+    const allRoles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
+    const unfilledRoles = allRoles.filter((r) => !filledRoles.includes(r));
+    const enemyUnfilledRoles = allRoles.filter(
+      (r) => !enemyFilledRoles.includes(r),
+    );
+
+    // Filter and normalize recommendations
+    parsed.recommendations = parsed.recommendations
+      .map((rec) => ({
+        ...rec,
+        championId:
+          rec.championId ||
+          rec.championName.toLowerCase().replace(/['\s]/g, ''),
+        flexLanes: rec.flexLanes || [],
+        goodAgainst: rec.goodAgainst || [],
+        badAgainst: rec.badAgainst || [],
+        synergiesWith: rec.synergiesWith || [],
+        teamNeeds: rec.teamNeeds || [],
+        masteryLevel: rec.masteryLevel || 'medium',
+      }))
+      .filter((rec) => {
+        // Filter out unavailable champions
+        const champId = this.normalizeChampId(rec.championName);
+        if (unavailable.has(champId)) {
+          this.logger.debug(
+            `Filtering out unavailable champion: ${rec.championName}`,
+          );
+          return false;
+        }
+
+        // For pick phase, filter out filled roles
+        if (draftState?.phase === 'pick' && rec.forRole) {
+          if (!unfilledRoles.includes(rec.forRole)) {
+            this.logger.debug(
+              `Filtering out recommendation for filled role: ${rec.forRole}`,
+            );
+            return false;
+          }
+        }
+
+        // For ban phase, filter out bans targeting filled enemy roles
+        if (draftState?.phase === 'ban' && rec.forRole) {
+          if (!enemyUnfilledRoles.includes(rec.forRole)) {
+            this.logger.debug(
+              `Filtering out ban for filled enemy role: ${rec.forRole}`,
+            );
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+    this.logger.debug('Cerebras recommendations received', {
       count: parsed.recommendations.length,
     });
     return parsed;
@@ -261,8 +393,7 @@ export class OpenAIService {
   async getRecommendations(
     draftState: DraftStateForAI,
   ): Promise<AIAnalysisResponse> {
-    const topPerformingChampions =
-      this.buildTopPerformingChampions(draftState);
+    const topPerformingChampions = this.buildTopPerformingChampions(draftState);
 
     // Check cache first
     const cacheKey = this.getCacheKey(draftState);
@@ -273,44 +404,40 @@ export class OpenAIService {
       return response;
     }
 
-    if (!this.openai) {
-      const mock = this.getMockRecommendations(draftState);
-      mock.recommendations = this.filterRecommendationsByRole(
-        draftState,
-        mock.recommendations,
-      ).slice(0, 5);
-      return { ...mock, topPerformingChampions };
+    if (!this.cerebras) {
+      return this.getMockRecommendations(draftState);
     }
+
+    // Calculate unfilled roles count for system prompt
+    const unfilledRolesCount = this.getUnfilledRolesCount(draftState);
 
     const model = this.getModel();
     const prompt = this.buildPrompt(draftState);
     const messages = [
-      { role: 'system' as const, content: this.getSystemPrompt() },
+      {
+        role: 'system' as const,
+        content: this.getSystemPrompt(unfilledRolesCount),
+      },
       { role: 'user' as const, content: prompt },
     ];
 
-    // gpt-5-nano only supports default temperature (1); other models support custom temperature
-    // 4096 tokens so full JSON (recommendations + tips + teamComposition) can complete; 2000 was hitting 'length'
-    const callOptions = {
-      messages,
-      response_format: { type: 'json_object' as const },
-      max_completion_tokens: 4096,
-      ...(model !== 'gpt-5-nano' && { temperature: 0.5 }),
-    };
-
     // What we send: system = JSON schema + rules; user = draft state (phase, teams, bans, picks, player pools)
-    this.logger.debug('OpenAI request', {
+    this.logger.debug('Cerebras request', {
       model,
       systemPromptChars: (messages[0]?.content as string)?.length ?? 0,
       userPromptChars: (messages[1]?.content as string)?.length ?? 0,
-      userPromptPreview: typeof messages[1]?.content === 'string' ? (messages[1].content as string).slice(0, 300) + '...' : '',
-      max_completion_tokens: callOptions.max_completion_tokens,
+      userPromptPreview:
+        typeof messages[1]?.content === 'string'
+          ? (messages[1].content as string).slice(0, 300) + '...'
+          : '',
     });
 
     try {
-      const completion = await this.openai.chat.completions.create({
+      const completion = await this.cerebras.chat.completions.create({
         model,
-        ...callOptions,
+        messages,
+        max_completion_tokens: 4096,
+        temperature: 0.5,
       });
 
       const firstChoice = completion.choices?.[0];
@@ -318,62 +445,37 @@ export class OpenAIService {
       const finishReason = firstChoice?.finish_reason;
 
       if (!content || (typeof content === 'string' && !content.trim())) {
-        this.logger.warn('OpenAI returned empty content', {
+        this.logger.warn('Cerebras returned empty content', {
           model,
           finish_reason: finishReason,
-          choicesLength: completion.choices?.length ?? 0,
+          choicesLength: Array.isArray(completion.choices)
+            ? completion.choices.length
+            : 0,
         });
         const mock = this.getMockRecommendations(draftState);
-        mock.recommendations = this.filterRecommendationsByRole(
-          draftState,
-          mock.recommendations,
-        ).slice(0, 5);
         return { ...mock, topPerformingChampions };
       }
 
       if (finishReason === 'length') {
-        this.logger.warn('OpenAI response was truncated (length); consider increasing max_completion_tokens or shortening prompt');
+        this.logger.warn(
+          'Cerebras response was truncated (length); consider increasing max_completion_tokens or shortening prompt',
+        );
       }
 
-      const parsed = this.parseAndNormalizeResponse(content);
-      parsed.recommendations = this.filterRecommendationsByRole(
-        draftState,
-        parsed.recommendations,
-      ).slice(0, 5);
+      // Extract JSON from response (Cerebras may wrap in markdown code blocks)
+      let jsonContent = content;
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim();
+      }
+
+      const parsed = this.parseAndNormalizeResponse(jsonContent, draftState);
       this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
       return { ...parsed, topPerformingChampions };
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      const isUnknownModel =
-        /model.*(does not exist|not found|invalid)/i.test(errMsg) ||
-        (error as { code?: string })?.code === 'invalid_model';
-      if (isUnknownModel && model !== this.FALLBACK_MODEL) {
-        this.logger.warn(`Model "${model}" not available, trying ${this.FALLBACK_MODEL}`);
-        try {
-          const completion = await this.openai.chat.completions.create({
-            model: this.FALLBACK_MODEL,
-            ...callOptions,
-          });
-          const fallbackContent = completion.choices[0]?.message?.content;
-          if (fallbackContent && String(fallbackContent).trim()) {
-            const parsed = this.parseAndNormalizeResponse(fallbackContent);
-            parsed.recommendations = this.filterRecommendationsByRole(
-              draftState,
-              parsed.recommendations,
-            ).slice(0, 5);
-            this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
-            return { ...parsed, topPerformingChampions };
-          }
-        } catch (fallbackError) {
-          this.logger.error('Fallback model also failed', fallbackError);
-        }
-      }
-      this.logger.error('OpenAI API error, falling back to mock', error);
+      this.logger.error('Cerebras API error, falling back to mock', errMsg);
       const mock = this.getMockRecommendations(draftState);
-      mock.recommendations = this.filterRecommendationsByRole(
-        draftState,
-        mock.recommendations,
-      ).slice(0, 5);
       return { ...mock, topPerformingChampions };
     }
   }
@@ -382,8 +484,7 @@ export class OpenAIService {
   async *streamRecommendations(
     draftState: DraftStateForAI,
   ): AsyncGenerator<Partial<AIAnalysisResponse>> {
-    const topPerformingChampions =
-      this.buildTopPerformingChampions(draftState);
+    const topPerformingChampions = this.buildTopPerformingChampions(draftState);
 
     // First yield cached/mock data immediately
     const cacheKey = this.getCacheKey(draftState);
@@ -393,70 +494,64 @@ export class OpenAIService {
       return;
     }
 
-    // Yield mock data immediately while waiting for OpenAI
+    // Yield mock data immediately while waiting for Cerebras
     const mockData = this.getMockRecommendations(draftState);
-    mockData.recommendations = this.filterRecommendationsByRole(
-      draftState,
-      mockData.recommendations,
-    ).slice(0, 5);
     yield { ...mockData, topPerformingChampions };
 
-    if (!this.openai) {
+    if (!this.cerebras) {
       return;
     }
 
     try {
       const prompt = this.buildPrompt(draftState);
       const model = this.getModel();
-      const stream = await this.openai.chat.completions.create({
+      const unfilledRolesCount = this.getUnfilledRolesCount(draftState);
+      const stream = await this.cerebras.chat.completions.create({
         model,
         messages: [
-          { role: 'system', content: this.getSystemPrompt() },
+          { role: 'system', content: this.getSystemPrompt(unfilledRolesCount) },
           { role: 'user', content: prompt },
         ],
-        response_format: { type: 'json_object' },
         max_completion_tokens: 4096,
         stream: true,
-        ...(model !== 'gpt-5-nano' && { temperature: 0.5 }),
+        temperature: 0.5,
       });
 
       let fullContent = '';
       for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content || '';
+        const chunkData = chunk as {
+          choices?: Array<{ delta?: { content?: string } }>;
+        };
+        const delta = chunkData.choices?.[0]?.delta?.content || '';
         fullContent += delta;
       }
 
       if (fullContent) {
-        const parsed = JSON.parse(fullContent) as AIAnalysisResponse;
-        parsed.recommendations = parsed.recommendations.map((rec) => ({
-          ...rec,
-          championId:
-            rec.championId ||
-            rec.championName.toLowerCase().replace(/['\s]/g, ''),
-          flexLanes: rec.flexLanes || [],
-          goodAgainst: rec.goodAgainst || [],
-          badAgainst: rec.badAgainst || [],
-          synergiesWith: rec.synergiesWith || [],
-          teamNeeds: rec.teamNeeds || [],
-          masteryLevel: rec.masteryLevel || 'medium',
-        }));
-        parsed.recommendations = this.filterRecommendationsByRole(
-          draftState,
-          parsed.recommendations,
-        ).slice(0, 5);
+        // Extract JSON from response (Cerebras may wrap in markdown code blocks)
+        let jsonContent = fullContent;
+        const jsonMatch = fullContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[1].trim();
+        }
+
+        const parsed = this.parseAndNormalizeResponse(jsonContent, draftState);
 
         this.cache.set(cacheKey, { response: parsed, timestamp: Date.now() });
         yield { ...parsed, topPerformingChampions };
       }
     } catch (error) {
-      this.logger.error('OpenAI streaming error', error);
+      this.logger.error('Cerebras streaming error', error);
     }
   }
 
-  private getSystemPrompt(): string {
-    return `You are a League of Legends draft analyst. Return ONLY valid JSON.
+  private getSystemPrompt(unfilledRolesCount: number): string {
+    // 2-3 recommendations per unfilled role
+    const recsPerRole = unfilledRolesCount <= 2 ? 3 : 2;
+    const totalRecs = Math.min(unfilledRolesCount * recsPerRole, 15);
 
-JSON shape (keep output SHORT to fit token limit):
+    return `You are a League of Legends draft analyst. Return ONLY valid JSON (no markdown, no code blocks).
+
+JSON shape:
 {
   "recommendations": [
     {
@@ -473,14 +568,19 @@ JSON shape (keep output SHORT to fit token limit):
     }
   ],
   "analysis": "One short sentence.",
-  "tips": [{"type":"insight"|"warning"|"opportunity","message":"Short tip","source":"ai"}],
+  "tips": [],
   "teamComposition": {"type":"teamfight"|"poke"|"mixed","strengths":["one"],"weaknesses":["one"],"damageBalance":{"ap":50,"ad":50,"true":0},"powerSpikes":["mid"],"engageLevel":50,"peelLevel":50}
 }
 
-RULES:
-- PICKS: Only recommend champions for YOUR team's UNFILLED roles. Set forRole only to a role that does not yet have a pick. Do not suggest champions for roles that already have a pick.
-- BANS: Only suggest bans that target the ENEMY's UNFILLED roles. Set forRole only to an enemy role that does not yet have a pick. Do not suggest banning champions for roles the enemy has already filled (e.g. in second ban phase, do not suggest ADC bans if enemy already has ADC).
-- Prefer top-performing champs from the match data when given. Return exactly 5 recommendations. Return 0 tips. Keep reasons short (under 6 words each); reasons are shown in tooltips.`;
+CRITICAL RULES:
+1. NEVER recommend champions listed in "UNAVAILABLE CHAMPIONS" - they are already picked or banned.
+2. PICK PHASE: ONLY recommend for UNFILLED roles. Do NOT recommend for roles already picked.
+3. BAN PHASE: ONLY target UNFILLED enemy roles. Do NOT recommend bans for roles enemy already picked.
+4. The "forRole" field MUST be one of the UNFILLED roles listed in the prompt.
+5. Return ${recsPerRole} recommendations PER unfilled role (total ~${totalRecs} recommendations). Spread evenly across all unfilled roles.
+6. Prefer player comfort picks and top-performing champs from match data.
+7. Keep reasons short (under 6 words).
+8. Each role should have ${recsPerRole} different champion options, not just 1.`;
   }
 
   private buildPrompt(state: DraftStateForAI): string {
@@ -497,6 +597,16 @@ RULES:
       (r) => !enemyFilledRoles.includes(r),
     );
 
+    // Build list of all unavailable champions (picked or banned)
+    const allBannedChamps = [...blueTeam.bans, ...redTeam.bans].filter(Boolean);
+    const allPickedChamps = [
+      ...blueTeam.picks.map((p) => p.champion),
+      ...redTeam.picks.map((p) => p.champion),
+    ].filter(Boolean);
+    const unavailableChampsList = [
+      ...new Set([...allBannedChamps, ...allPickedChamps]),
+    ];
+
     let prompt = `Draft Analysis Request:
 Phase: ${phase.toUpperCase()} (pick ${pickNumber}/20)
 Your Team: ${activeTeam.name} (${currentTeam} side)
@@ -507,6 +617,9 @@ Current Draft State:
 - Red bans: ${redTeam.bans.join(', ') || 'none'}
 - Blue picks: ${blueTeam.picks.map((p) => `${p.champion}(${p.role})`).join(', ') || 'none'}
 - Red picks: ${redTeam.picks.map((p) => `${p.champion}(${p.role})`).join(', ') || 'none'}
+
+UNAVAILABLE CHAMPIONS (already picked or banned - DO NOT RECOMMEND):
+${unavailableChampsList.length > 0 ? unavailableChampsList.join(', ') : 'none'}
 
 Your team's unfilled roles: ${unfilledRoles.join(', ') || 'ALL FILLED'}
 Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
@@ -527,7 +640,9 @@ Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
         .map(
           (t) =>
             `${t.champion} WR${t.winRate.toFixed(0)}% KDA${t.avgKda.toFixed(1)} gold${Math.round(t.avgGoldEarned)} ft${t.avgFirstTower.toFixed(1)} gd${Math.round(t.avgGameDuration)}` +
-            (t.firstDragonPct !== undefined ? ` fd${t.firstDragonPct.toFixed(0)}%` : ''),
+            (t.firstDragonPct !== undefined
+              ? ` fd${t.firstDragonPct.toFixed(0)}%`
+              : ''),
         )
         .join(' | ');
     };
@@ -538,18 +653,30 @@ Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
         .filter((p) => unfilledRoles.includes(p.role))
         .map((p) => {
           const topLine = formatTopChamps(p.name, ourTeamName);
-          const poolLine = `${p.name} (${p.role}): ${p.championPool.slice(0, 5).map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`).join(', ')}`;
-          return topLine ? `${poolLine}\n  Top performance (match data): ${topLine}` : poolLine;
+          const poolLine = `${p.name} (${p.role}): ${p.championPool
+            .slice(0, 5)
+            .map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`)
+            .join(', ')}`;
+          return topLine
+            ? `${poolLine}\n  Top performance (match data): ${topLine}`
+            : poolLine;
         })
         .join('\n');
-      prompt += `
-PICK PHASE - Recommend champions ONLY for these unfilled roles: ${unfilledRoles.join(', ')}
-Do NOT suggest champions for roles that already have a pick (${filledRoles.join(', ') || 'none'}).
 
-Your players and champion pools (with top 5 performance from match data: win_rate, kda, gold_earned, first_tower, game_duration; first_dragon for junglers):
+      // Build explicit list of filled roles to exclude
+      const filledRolesInfo =
+        filledRoles.length > 0
+          ? `\nALREADY FILLED (DO NOT RECOMMEND): ${filledRoles.join(', ')} - these roles have champions picked, skip them entirely.`
+          : '';
+
+      prompt += `
+PICK PHASE - ONLY recommend for these UNFILLED roles: ${unfilledRoles.join(', ')}${filledRolesInfo}
+
+Players needing picks (UNFILLED roles only):
 ${topChampLines}
 
-Include recommendations only for unfilled roles. Prefer top-performing champs when they fit.`;
+IMPORTANT: Each recommendation's "forRole" MUST be one of: ${unfilledRoles.join(', ')}
+DO NOT include any recommendations for ${filledRoles.length > 0 ? filledRoles.join(', ') : 'N/A'} - those are already picked.`;
     }
 
     if (phase === 'ban') {
@@ -558,18 +685,30 @@ Include recommendations only for unfilled roles. Prefer top-performing champs wh
         .filter((p) => enemyUnfilledRoles.includes(p.role))
         .map((p) => {
           const topLine = formatTopChamps(p.name, enemyName);
-          const poolLine = `${p.name} (${p.role}): ${p.championPool.slice(0, 4).map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`).join(', ')}`;
-          return topLine ? `${poolLine}\n  Top performance (match data): ${topLine}` : poolLine;
+          const poolLine = `${p.name} (${p.role}): ${p.championPool
+            .slice(0, 4)
+            .map((c) => `${c.champion}(${c.games}g/${c.winRate.toFixed(0)}%)`)
+            .join(', ')}`;
+          return topLine
+            ? `${poolLine}\n  Top performance (match data): ${topLine}`
+            : poolLine;
         })
         .join('\n');
-      prompt += `
-BAN PHASE - ONLY suggest bans for the enemy's UNFILLED roles: ${enemyUnfilledRoles.join(', ')}
-Do NOT suggest banning champions for roles the enemy has already filled (${enemyFilledRoles.join(', ') || 'none'}). In second ban phase, only target champions that could be played in unfilled enemy roles.
 
-Enemy players (UNFILLED) and their top performance from match data (prioritize banning these):
+      // Build explicit list of enemy filled roles to exclude
+      const enemyFilledInfo =
+        enemyFilledRoles.length > 0
+          ? `\nENEMY ALREADY PICKED (DO NOT TARGET): ${enemyFilledRoles.join(', ')} - these enemy roles are filled, banning for them is useless.`
+          : '';
+
+      prompt += `
+BAN PHASE - ONLY target these UNFILLED enemy roles: ${enemyUnfilledRoles.join(', ')}${enemyFilledInfo}
+
+Enemy players who still need to pick (UNFILLED roles only):
 ${enemyTopLines}
 
-Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
+IMPORTANT: Each recommendation's "forRole" MUST target one of: ${enemyUnfilledRoles.join(', ')}
+DO NOT recommend bans for ${enemyFilledRoles.length > 0 ? enemyFilledRoles.join(', ') : 'N/A'} - enemy already picked those roles.`;
     }
 
     return prompt;
@@ -664,42 +803,48 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
       enemyUnfilledRoles.includes(p.role),
     );
 
-    // Add player comfort picks first (2 per player)
-    for (const player of targetPlayers) {
-      for (const champ of player.championPool.slice(0, 2)) {
-        const champId = champ.champion.toLowerCase().replace(/['\s]/g, '');
-        if (
-          !unavailable.has(champId) &&
-          !recommendations.find((r) => r.championId === champId)
-        ) {
-          const games = champ.games || 0;
-          recommendations.push({
-            championId: champId,
-            championName: champ.champion,
-            score: 92 - recommendations.length * 2,
-            type: 'deny',
-            reasons: [
-              `${player.name}'s signature pick`,
-              `${games} games, ${champ.winRate.toFixed(0)}% WR`,
-            ],
-            flexLanes: [player.role],
-            masteryLevel: games >= 8 ? 'high' : games >= 4 ? 'medium' : 'low',
-            teamNeeds: ['Deny Enemy Comfort'],
-            forRole: player.role,
-            forPlayer: player.name,
-          });
+    // Calculate target recommendations per role (2-3 depending on unfilled count)
+    const targetPerRole = enemyUnfilledRoles.length <= 2 ? 3 : 2;
+
+    // Generate recommendations for each unfilled enemy role
+    for (const role of enemyUnfilledRoles) {
+      const player = targetPlayers.find((p) => p.role === role);
+      const metaBans = metaBansByRole[role] || [];
+      let roleRecsCount = 0;
+
+      // First, add player comfort picks (up to 2)
+      if (player) {
+        for (const champ of player.championPool.slice(0, 2)) {
+          if (roleRecsCount >= targetPerRole) break;
+          const champId = champ.champion.toLowerCase().replace(/['\s]/g, '');
+          if (
+            !unavailable.has(champId) &&
+            !recommendations.find((r) => r.championId === champId)
+          ) {
+            const games = champ.games || 0;
+            recommendations.push({
+              championId: champId,
+              championName: champ.champion,
+              score: 92 - roleRecsCount * 3,
+              type: 'deny',
+              reasons: [
+                `${player.name}'s signature pick`,
+                `${games} games, ${champ.winRate.toFixed(0)}% WR`,
+              ],
+              flexLanes: [role],
+              masteryLevel: games >= 8 ? 'high' : games >= 4 ? 'medium' : 'low',
+              teamNeeds: ['Deny Enemy Comfort'],
+              forRole: role,
+              forPlayer: player.name,
+            });
+            roleRecsCount++;
+          }
         }
       }
-    }
 
-    // Add meta bans for unfilled roles (1-2 per role)
-    for (const role of enemyUnfilledRoles) {
-      const metaBans = metaBansByRole[role] || [];
-      const player = enemyTeam.players.find((p) => p.role === role);
-      let addedForRole = 0;
-
+      // Then add meta bans to fill up to targetPerRole
       for (const meta of metaBans) {
-        if (addedForRole >= 2) break;
+        if (roleRecsCount >= targetPerRole) break;
         const champId = meta.name.toLowerCase().replace(/['\s]/g, '');
         if (
           !unavailable.has(champId) &&
@@ -708,7 +853,7 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
           recommendations.push({
             championId: champId,
             championName: meta.name,
-            score: 78 - recommendations.length,
+            score: 80 - roleRecsCount * 3,
             type: 'meta',
             reasons: [meta.reason, `High priority ${role} ban`],
             flexLanes: [role],
@@ -717,7 +862,7 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
             forRole: role,
             forPlayer: player?.name,
           });
-          addedForRole++;
+          roleRecsCount++;
         }
       }
     }
@@ -763,8 +908,12 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
       });
     }
 
+    // Calculate how many recommendations to return (2-3 per unfilled role)
+    const recsPerRole = enemyUnfilledRoles.length <= 2 ? 3 : 2;
+    const maxRecs = Math.min(enemyUnfilledRoles.length * recsPerRole, 15);
+
     return {
-      recommendations: recommendations.slice(0, 5),
+      recommendations: recommendations.slice(0, maxRecs),
       analysis: `Ban phase - targeting ${enemyTeam.name}'s unfilled roles: ${enemyUnfilledRoles.join(', ')}.`,
       tips,
       teamComposition: this.calculateTeamComposition(activeTeam),
@@ -789,13 +938,18 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
       SUP: ['Nautilus', 'Thresh', 'Rakan', 'Alistar', 'Renata Glasc'],
     };
 
+    // Calculate target recommendations per role (2-3 depending on unfilled count)
+    const targetPerRole = unfilledRoles.length <= 2 ? 3 : 2;
+
     // Recommend for ALL unfilled roles
     for (const role of unfilledRoles) {
       const player = activeTeam.players.find((p) => p.role === role);
+      let roleRecsCount = 0;
 
-      // First, add player comfort picks
+      // First, add player comfort picks (up to 2)
       if (player) {
         for (const champ of player.championPool.slice(0, 2)) {
+          if (roleRecsCount >= targetPerRole) break;
           const champId = champ.champion.toLowerCase().replace(/['\s]/g, '');
           if (
             !unavailable.has(champId) &&
@@ -805,7 +959,7 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
             recommendations.push({
               championId: champId,
               championName: champ.champion,
-              score: 88 - recommendations.length * 2,
+              score: 92 - roleRecsCount * 3,
               type: 'comfort',
               reasons: [
                 `${player.name}'s comfort`,
@@ -817,32 +971,33 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
               forRole: role,
               forPlayer: player.name,
             });
+            roleRecsCount++;
           }
         }
       }
 
-      // Then add meta picks if needed
-      if (recommendations.filter((r) => r.forRole === role).length < 2) {
-        for (const champ of metaByRole[role] || []) {
-          const champId = champ.toLowerCase().replace(/['\s]/g, '');
-          if (
-            !unavailable.has(champId) &&
-            !recommendations.find((r) => r.championId === champId)
-          ) {
-            recommendations.push({
-              championId: champId,
-              championName: champ,
-              score: 75 - recommendations.length,
-              type: 'meta',
-              reasons: [`Strong ${role} pick`, 'High priority'],
-              flexLanes: [role],
-              masteryLevel: 'medium',
-              teamNeeds: this.getTeamNeeds(champ, activeTeam),
-              forRole: role,
-              forPlayer: player?.name,
-            });
-            break;
-          }
+      // Then add meta picks to fill up to targetPerRole
+      const metaChamps = metaByRole[role] || [];
+      for (const champ of metaChamps) {
+        if (roleRecsCount >= targetPerRole) break;
+        const champId = champ.toLowerCase().replace(/['\s]/g, '');
+        if (
+          !unavailable.has(champId) &&
+          !recommendations.find((r) => r.championId === champId)
+        ) {
+          recommendations.push({
+            championId: champId,
+            championName: champ,
+            score: 80 - roleRecsCount * 3,
+            type: 'meta',
+            reasons: [`Strong ${role} pick`, 'High priority'],
+            flexLanes: [role],
+            masteryLevel: 'medium',
+            teamNeeds: this.getTeamNeeds(champ, activeTeam),
+            forRole: role,
+            forPlayer: player?.name,
+          });
+          roleRecsCount++;
         }
       }
     }
@@ -892,8 +1047,12 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
       }
     }
 
+    // Calculate how many recommendations to return (2-3 per unfilled role)
+    const recsPerRole = unfilledRoles.length <= 2 ? 3 : 2;
+    const maxRecs = Math.min(unfilledRoles.length * recsPerRole, 15);
+
     return {
-      recommendations: recommendations.slice(0, 5),
+      recommendations: recommendations.slice(0, maxRecs),
       analysis: `Pick phase - recommending for ${unfilledRoles.join(', ')}. Choose based on team needs.`,
       tips,
       teamComposition: composition,
@@ -1058,141 +1217,263 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
   }
 
   /**
-   * Generate game plan (5 bullet points) for C9 team after draft completion.
-   * Takes final draft state and C9 team side (blue/red).
+   * Generate post-draft strategy analysis for both teams
    */
-  async generateGamePlan(
-    draftState: DraftStateForAI,
-    c9Team: 'blue' | 'red',
-  ): Promise<{ gamePlan: string[] }> {
-    if (!this.openai) {
-      return this.getMockGamePlan(draftState, c9Team);
+  async getPostDraftStrategy(
+    draftState: FinalDraftState,
+  ): Promise<PostDraftStrategyResponse> {
+    this.logger.log('Generating post-draft strategy analysis');
+
+    if (!this.cerebras) {
+      this.logger.warn('Cerebras not configured, returning mock strategy');
+      return this.getMockStrategy(draftState);
     }
 
-    const c9TeamData = c9Team === 'blue' ? draftState.blueTeam : draftState.redTeam;
-    const enemyTeamData = c9Team === 'blue' ? draftState.redTeam : draftState.blueTeam;
-
-    const c9Composition = this.calculateTeamComposition(c9TeamData);
-    const enemyComposition = this.calculateTeamComposition(enemyTeamData);
-
-    const prompt = this.buildGamePlanPrompt(
-      c9TeamData,
-      enemyTeamData,
-      c9Composition,
-      enemyComposition,
-    );
-
-    const model = this.getModel();
-    const messages = [
-      {
-        role: 'system' as const,
-        content: `You are a League of Legends strategic coach. Generate a concise game plan with exactly 5 bullet points for Cloud9 (C9) team based on the completed draft. Focus on win conditions, power spikes, team composition strengths, and how to play around the enemy team's weaknesses. Keep each bullet point to 1-2 sentences. Return ONLY valid JSON: {"gamePlan": ["bullet 1", "bullet 2", "bullet 3", "bullet 4", "bullet 5"]}`,
-      },
-      { role: 'user' as const, content: prompt },
-    ];
+    const prompt = this.buildStrategyPrompt(draftState);
+    const systemPrompt = this.getStrategySystemPrompt();
 
     try {
-      const completion = await this.openai.chat.completions.create({
-        model,
-        messages,
-        response_format: { type: 'json_object' as const },
-        max_completion_tokens: 500,
-        ...(model !== 'gpt-5-nano' && { temperature: 0.7 }),
+      const completion = await this.cerebras.chat.completions.create({
+        model: this.getModel(),
+        messages: [
+          { role: 'system' as const, content: systemPrompt },
+          { role: 'user' as const, content: prompt },
+        ],
+        max_completion_tokens: 8192,
+        temperature: 0.7,
       });
 
-      const content = completion.choices[0]?.message?.content;
+      const content = completion.choices?.[0]?.message?.content;
       if (!content) {
-        return this.getMockGamePlan(draftState, c9Team);
+        this.logger.warn('Empty response from Cerebras for strategy');
+        return this.getMockStrategy(draftState);
       }
 
-      const parsed = JSON.parse(content) as { gamePlan: string[] };
-      if (Array.isArray(parsed.gamePlan) && parsed.gamePlan.length === 5) {
-        return { gamePlan: parsed.gamePlan };
+      // Extract JSON from response
+      let jsonContent = content;
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim();
       }
 
-      this.logger.warn('Invalid game plan format from AI, using mock');
-      return this.getMockGamePlan(draftState, c9Team);
+      const parsed = JSON.parse(jsonContent) as PostDraftStrategyResponse;
+      this.logger.log('Strategy analysis generated successfully');
+      return parsed;
     } catch (error) {
-      this.logger.error('Error generating game plan, using mock', error);
-      return this.getMockGamePlan(draftState, c9Team);
+      this.logger.error('Error generating strategy', error);
+      return this.getMockStrategy(draftState);
     }
   }
 
-  private buildGamePlanPrompt(
-    c9Team: DraftStateForAI['blueTeam'],
-    enemyTeam: DraftStateForAI['blueTeam'],
-    c9Comp: AIAnalysisResponse['teamComposition'] | undefined,
-    enemyComp: AIAnalysisResponse['teamComposition'] | undefined,
-  ): string {
-    const c9Picks = c9Team.picks.map((p) => `${p.champion} (${p.role})`).join(', ');
-    const c9Bans = c9Team.bans.join(', ') || 'none';
-    const enemyPicks = enemyTeam.picks.map((p) => `${p.champion} (${p.role})`).join(', ');
-    const enemyBans = enemyTeam.bans.join(', ') || 'none';
+  private getStrategySystemPrompt(): string {
+    return `You are an expert League of Legends coach and analyst. Analyze the completed draft and provide strategic insights.
 
-    let prompt = `Draft Complete - Game Plan for Cloud9
-
-C9 Team Composition:
-Picks: ${c9Picks}
-Bans: ${c9Bans}
-`;
-    if (c9Comp) {
-      prompt += `Composition Type: ${c9Comp.type}
-Strengths: ${c9Comp.strengths.join(', ')}
-Weaknesses: ${c9Comp.weaknesses.join(', ')}
-Damage Balance: AP ${c9Comp.damageBalance.ap}%, AD ${c9Comp.damageBalance.ad}%
-Power Spikes: ${c9Comp.powerSpikes.join(', ')}
-Engage Level: ${c9Comp.engageLevel}%, Peel Level: ${c9Comp.peelLevel}%
-
-`;
+Return ONLY valid JSON (no markdown, no code blocks) with this structure:
+{
+  "blueTeamAnalysis": {
+    "type": "teamfight|poke|pick|splitpush|siege|skirmish|protect",
+    "description": "Brief description of the team composition style",
+    "strengths": ["strength1", "strength2", "strength3"],
+    "weaknesses": ["weakness1", "weakness2"],
+    "keyChampions": ["champ1", "champ2"],
+    "damageProfile": {"ap": 0-100, "ad": 0-100, "true": 0-100},
+    "powerSpikes": ["early", "mid", "late"],
+    "engageTools": ["tool1", "tool2"],
+    "disengage": ["tool1"]
+  },
+  "redTeamAnalysis": { same structure as blueTeamAnalysis },
+  "blueWinConditions": [
+    {
+      "priority": 1,
+      "title": "Primary Win Condition",
+      "description": "How to win",
+      "howToExecute": ["step1", "step2"],
+      "keyPlayers": ["player1"]
     }
+  ],
+  "redWinConditions": [ same structure ],
+  "earlyGame": {
+    "invadeProbability": 0-100,
+    "counterInvadeProbability": 0-100,
+    "invadeRecommendation": "Should blue invade? Why/why not",
+    "jungleMatchup": "Analysis of jungle matchup",
+    "laneMatchups": [
+      {"lane": "TOP", "advantage": "blue|red|even", "description": "Why"},
+      {"lane": "MID", "advantage": "blue|red|even", "description": "Why"},
+      {"lane": "BOT", "advantage": "blue|red|even", "description": "Why"}
+    ],
+    "firstObjectivePriority": "Dragon or Herald and why"
+  },
+  "keyMatchups": ["matchup1 description", "matchup2 description"],
+  "draftVerdict": {
+    "advantage": "blue|red|even",
+    "confidence": 0-100,
+    "reasoning": "Why this team has the advantage"
+  },
+  "coachingNotes": ["note1", "note2", "note3"]
+}
 
-    prompt += `Enemy Team Composition:
-Picks: ${enemyPicks}
-Bans: ${enemyBans}
-`;
-    if (enemyComp) {
-      prompt += `Composition Type: ${enemyComp.type}
-Strengths: ${enemyComp.strengths.join(', ')}
-Weaknesses: ${enemyComp.weaknesses.join(', ')}
-Damage Balance: AP ${enemyComp.damageBalance.ap}%, AD ${enemyComp.damageBalance.ad}%
-Power Spikes: ${enemyComp.powerSpikes.join(', ')}
-Engage Level: ${enemyComp.engageLevel}%, Peel Level: ${enemyComp.peelLevel}%
-
-`;
-    }
-
-    prompt += `Generate 5 strategic bullet points for C9's game plan. Consider:
-- Win conditions based on team composition
-- Power spike timings and when to force fights
-- How to exploit enemy weaknesses
-- Key objectives and map control priorities
-- Itemization and draft-specific strategies`;
-
-    return prompt;
+Be specific about champion abilities and synergies. Consider professional play patterns.`;
   }
 
-  private getMockGamePlan(
-    draftState: DraftStateForAI,
-    c9Team: 'blue' | 'red',
-  ): { gamePlan: string[] } {
-    const c9TeamData = c9Team === 'blue' ? draftState.blueTeam : draftState.redTeam;
-    const c9Comp = this.calculateTeamComposition(c9TeamData);
-    const hasEngage = c9Comp && c9Comp.engageLevel >= 50;
-    const isAPHeavy = c9Comp && c9Comp.damageBalance.ap >= 60;
+  private buildStrategyPrompt(state: FinalDraftState): string {
+    const formatTeam = (
+      team: FinalDraftState['blueTeam'],
+      side: string,
+    ): string => {
+      const picks = team.picks
+        .map((p) => `${p.role}: ${p.champion} (${p.player})`)
+        .join('\n  ');
+      const bans = team.bans.join(', ') || 'none';
+      return `${side} Team (${team.name}):
+  Bans: ${bans}
+  Picks:
+  ${picks}`;
+    };
+
+    return `Analyze this completed League of Legends draft:
+
+${formatTeam(state.blueTeam, 'Blue')}
+
+${formatTeam(state.redTeam, 'Red')}
+
+Provide a comprehensive strategic breakdown including:
+1. Team composition types and playstyles for both teams
+2. Win conditions for each team (prioritized)
+3. Early game analysis: invade potential, jungle matchup, lane matchups
+4. Key matchups that will decide the game
+5. Overall draft verdict with confidence level
+6. Coaching notes for both teams
+
+Consider champion synergies, counter-picks, power spikes, and professional meta.`;
+  }
+
+  private getMockStrategy(state: FinalDraftState): PostDraftStrategyResponse {
+    const blueChamps = state.blueTeam.picks.map((p) => p.champion);
+    const redChamps = state.redTeam.picks.map((p) => p.champion);
 
     return {
-      gamePlan: [
-        hasEngage
-          ? 'Force teamfights around objectives using your strong engage tools.'
-          : 'Play for picks and skirmishes; avoid 5v5 teamfights until key items.',
-        isAPHeavy
-          ? 'Prioritize magic resistance itemization against enemy AP threats.'
-          : 'Build armor penetration and anti-tank items for mid-game power spike.',
-        c9Comp?.powerSpikes.includes('early')
-          ? 'Aggressively contest early objectives and invade enemy jungle.'
-          : 'Scale safely through early game; prioritize farm and vision control.',
-        'Control dragon and Baron timers; set up vision before objectives spawn.',
-        'Focus on shutting down enemy carry in teamfights; use crowd control effectively.',
+      blueTeamAnalysis: {
+        type: 'teamfight',
+        description: `${state.blueTeam.name} drafted a well-rounded teamfight composition`,
+        strengths: [
+          'Strong 5v5 teamfighting',
+          'Good frontline',
+          'Mixed damage',
+        ],
+        weaknesses: ['Vulnerable to split push', 'Reliant on grouped fights'],
+        keyChampions: blueChamps.slice(0, 2),
+        damageProfile: { ap: 45, ad: 50, true: 5 },
+        powerSpikes: ['mid', 'late'],
+        engageTools: ['Primary engage from support/jungle'],
+        disengage: ['Limited disengage tools'],
+      },
+      redTeamAnalysis: {
+        type: 'skirmish',
+        description: `${state.redTeam.name} drafted a skirmish-focused composition`,
+        strengths: [
+          'Strong skirmishing',
+          'Good pick potential',
+          'Mobile carries',
+        ],
+        weaknesses: ['Weaker in extended 5v5', 'Needs early leads'],
+        keyChampions: redChamps.slice(0, 2),
+        damageProfile: { ap: 40, ad: 55, true: 5 },
+        powerSpikes: ['early', 'mid'],
+        engageTools: ['Pick-based engage'],
+        disengage: ['Mobility-based escape'],
+      },
+      blueWinConditions: [
+        {
+          priority: 1,
+          title: 'Group and Teamfight',
+          description: 'Force 5v5 fights around objectives',
+          howToExecute: [
+            'Contest every dragon',
+            'Group mid after laning phase',
+            'Use numbers advantage in fights',
+          ],
+          keyPlayers: [state.blueTeam.picks[1]?.player || 'Jungler'],
+        },
+        {
+          priority: 2,
+          title: 'Scale to Late Game',
+          description: 'Reach item spikes and outscale',
+          howToExecute: [
+            'Farm safely in lanes',
+            'Avoid unnecessary skirmishes',
+            'Wait for 3+ items',
+          ],
+          keyPlayers: [state.blueTeam.picks[3]?.player || 'ADC'],
+        },
+      ],
+      redWinConditions: [
+        {
+          priority: 1,
+          title: 'Early Aggression',
+          description: 'Snowball through early game pressure',
+          howToExecute: [
+            'Invade enemy jungle',
+            'Dive weak lanes',
+            'Secure early dragons',
+          ],
+          keyPlayers: [state.redTeam.picks[1]?.player || 'Jungler'],
+        },
+        {
+          priority: 2,
+          title: 'Pick Composition',
+          description: 'Catch enemies out of position',
+          howToExecute: [
+            'Set up vision control',
+            'Look for flanks',
+            'Punish rotations',
+          ],
+          keyPlayers: [state.redTeam.picks[2]?.player || 'Mid'],
+        },
+      ],
+      earlyGame: {
+        invadeProbability: 35,
+        counterInvadeProbability: 55,
+        invadeRecommendation:
+          'Red team has stronger level 1, consider invading blue buff',
+        jungleMatchup:
+          'Jungle matchup favors early game pressure, expect ganks pre-6',
+        laneMatchups: [
+          {
+            lane: 'TOP',
+            advantage: 'even',
+            description: 'Skill-based matchup, depends on jungle proximity',
+          },
+          {
+            lane: 'MID',
+            advantage: 'blue',
+            description: 'Blue mid has range advantage and better waveclear',
+          },
+          {
+            lane: 'BOT',
+            advantage: 'red',
+            description: 'Red bot has kill pressure with aggressive support',
+          },
+        ],
+        firstObjectivePriority:
+          'Herald for Blue to accelerate mid tower; Dragon for Red to stack early',
+      },
+      keyMatchups: [
+        'Jungle matchup will determine early game tempo',
+        'Mid lane priority affects roam timings',
+        'Bot lane 2v2 decides dragon control',
+      ],
+      draftVerdict: {
+        advantage: 'even',
+        confidence: 55,
+        reasoning:
+          'Draft is relatively even. Blue wins if game goes late, Red wins through early snowball.',
+      },
+      coachingNotes: [
+        'Blue team: Focus on not falling behind early, scale to teamfights',
+        'Red team: Must create leads before 25 minutes',
+        'Vision control around dragon pit is critical for both teams',
+        'Track jungle pathing - first gank will set the tone',
       ],
     };
   }

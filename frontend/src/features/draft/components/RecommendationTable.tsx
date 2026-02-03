@@ -50,64 +50,83 @@ function getTypeIcon(type: string) {
   }
 }
 
-function getTypeColor(type: string) {
+function getTypeStyle(type: string) {
   switch (type) {
     case "comfort":
-      return "text-amber-400 bg-amber-400/10";
+      return {
+        bg: "bg-amber-500/15",
+        text: "text-amber-400",
+        border: "border-amber-500/30",
+      };
     case "counter":
-      return "text-red-400 bg-red-400/10";
+      return {
+        bg: "bg-red-500/15",
+        text: "text-red-400",
+        border: "border-red-500/30",
+      };
     case "meta":
-      return "text-blue-400 bg-blue-400/10";
+      return {
+        bg: "bg-blue-500/15",
+        text: "text-blue-400",
+        border: "border-blue-500/30",
+      };
     case "synergy":
-      return "text-green-400 bg-green-400/10";
+      return {
+        bg: "bg-emerald-500/15",
+        text: "text-emerald-400",
+        border: "border-emerald-500/30",
+      };
     case "deny":
-      return "text-purple-400 bg-purple-400/10";
+      return {
+        bg: "bg-purple-500/15",
+        text: "text-purple-400",
+        border: "border-purple-500/30",
+      };
     case "flex":
-      return "text-cyan-400 bg-cyan-400/10";
+      return {
+        bg: "bg-cyan-500/15",
+        text: "text-cyan-400",
+        border: "border-cyan-500/30",
+      };
     default:
-      return "text-muted-foreground bg-muted";
+      return {
+        bg: "bg-muted",
+        text: "text-muted-foreground",
+        border: "border-border-subtle",
+      };
   }
 }
 
-function getRoleColor(role: string) {
-  switch (role?.toUpperCase()) {
-    case "TOP":
-      return "border-l-amber-500 bg-amber-500/5";
-    case "JGL":
-    case "JUNGLE":
-      return "border-l-green-500 bg-green-500/5";
-    case "MID":
-      return "border-l-blue-500 bg-blue-500/5";
-    case "ADC":
-    case "BOT":
-      return "border-l-red-500 bg-red-500/5";
-    case "SUP":
-    case "SUPPORT":
-      return "border-l-purple-500 bg-purple-500/5";
-    default:
-      return "border-l-muted bg-muted/5";
-  }
-}
-
-function getRoleBadgeColor(role: string) {
-  switch (role?.toUpperCase()) {
-    case "TOP":
-      return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-    case "JGL":
-    case "JUNGLE":
-      return "bg-green-500/20 text-green-400 border-green-500/30";
-    case "MID":
-      return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-    case "ADC":
-    case "BOT":
-      return "bg-red-500/20 text-red-400 border-red-500/30";
-    case "SUP":
-    case "SUPPORT":
-      return "bg-purple-500/20 text-purple-400 border-purple-500/30";
-    default:
-      return "bg-muted text-muted-foreground border-border-subtle";
-  }
-}
+const ROLE_STYLES: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
+  TOP: {
+    bg: "bg-amber-500/10",
+    text: "text-amber-400",
+    border: "border-l-amber-500",
+  },
+  JGL: {
+    bg: "bg-emerald-500/10",
+    text: "text-emerald-400",
+    border: "border-l-emerald-500",
+  },
+  MID: {
+    bg: "bg-blue-500/10",
+    text: "text-blue-400",
+    border: "border-l-blue-500",
+  },
+  ADC: {
+    bg: "bg-red-500/10",
+    text: "text-red-400",
+    border: "border-l-red-500",
+  },
+  SUP: {
+    bg: "bg-purple-500/10",
+    text: "text-purple-400",
+    border: "border-l-purple-500",
+  },
+};
 
 interface RoleGroup {
   role: string;
@@ -125,11 +144,9 @@ export function RecommendationTable({
     const hasRoles = recommendations.some((rec) => rec.forRole);
 
     if (!hasRoles) {
-      // No role info - show as single group
       return [{ role: "", player: undefined, recommendations }] as RoleGroup[];
     }
 
-    // Group by role
     const groups: Record<string, RoleGroup> = {};
     const roleOrder = ["TOP", "JGL", "MID", "ADC", "SUP"];
 
@@ -145,7 +162,6 @@ export function RecommendationTable({
       groups[role].recommendations.push(rec);
     });
 
-    // Sort groups by role order
     return Object.values(groups).sort((a, b) => {
       const aIndex = roleOrder.indexOf(a.role);
       const bIndex = roleOrder.indexOf(b.role);
@@ -159,7 +175,7 @@ export function RecommendationTable({
   if (recommendations.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-muted-foreground">
-        <p>Analyzing draft...</p>
+        <p className="text-sm">Analyzing draft...</p>
       </div>
     );
   }
@@ -168,185 +184,185 @@ export function RecommendationTable({
     groupedRecommendations.length > 1 || groupedRecommendations[0]?.role;
 
   return (
-    <div className="overflow-hidden">
-      {groupedRecommendations.map((group, groupIndex) => (
-        <div key={group.role || groupIndex} className="mb-0">
-          {/* Role Header */}
-          {hasMultipleRoles && group.role && (
-            <div
-              className={cn(
-                "flex items-center gap-3 px-4 py-2 border-l-4",
-                getRoleColor(group.role),
-              )}
-            >
-              <span
+    <div className="divide-y divide-border-subtle">
+      {groupedRecommendations.map((group, groupIndex) => {
+        const roleStyle = ROLE_STYLES[group.role] || {
+          bg: "bg-muted/50",
+          text: "text-muted-foreground",
+          border: "border-l-muted",
+        };
+
+        return (
+          <div key={group.role || groupIndex}>
+            {/* Role Header */}
+            {hasMultipleRoles && group.role && (
+              <div
                 className={cn(
-                  "px-2 py-0.5 text-xs font-bold rounded border",
-                  getRoleBadgeColor(group.role),
+                  "flex items-center gap-3 px-5 py-2.5 border-l-4",
+                  roleStyle.border,
+                  roleStyle.bg,
                 )}
               >
-                {group.role}
-              </span>
-              {group.player && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <User className="w-3.5 h-3.5" />
-                  <span>{group.player}</span>
-                </div>
-              )}
-              <span className="text-xs text-muted-foreground ml-auto">
-                {group.recommendations.length} option
-                {group.recommendations.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-
-          {/* Column Header - only show for first group */}
-          {groupIndex === 0 && (
-            <div className="grid grid-cols-[50px_1fr_90px_80px_80px] gap-2 px-4 py-2 bg-muted/30 border-b border-border-subtle text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              <div>Score</div>
-              <div>Champion</div>
-              <div>Type</div>
-              <div>Needs</div>
-              <div>Mastery</div>
-            </div>
-          )}
-
-          {/* Recommendations */}
-          <div
-            className={cn(
-              "divide-y divide-border-subtle",
-              hasMultipleRoles && group.role && "border-l-4",
-              hasMultipleRoles && getRoleColor(group.role),
-            )}
-          >
-            {group.recommendations.map((rec, index) => {
-              const champion: Champion = {
-                id: rec.championId,
-                name: rec.championName,
-                roles: (rec.flexLanes as any) || [],
-                image: getChampionImageUrl(rec.championName),
-              };
-
-              const isTopPick = index === 0;
-
-              const reasonTooltip =
-                rec.reasons?.length > 0
-                  ? rec.reasons.join(" • ")
-                  : "No reason provided";
-
-              return (
-                <div
-                  key={`${rec.championId}-${index}`}
-                  onClick={() => onSelectChampion(champion)}
-                  title={reasonTooltip}
+                <span
                   className={cn(
-                    "grid grid-cols-[50px_1fr_90px_80px_80px] gap-2 px-4 py-2.5 items-center cursor-pointer transition-all",
-                    "hover:bg-muted/40",
-                    isTopPick && "bg-primary/5 hover:bg-primary/10",
+                    "px-2.5 py-1 text-xs font-bold rounded-md",
+                    roleStyle.bg,
+                    roleStyle.text,
                   )}
                 >
-                  {/* Score */}
-                  <div className="flex items-center">
-                    <span
-                      className={cn(
-                        "text-base font-bold",
-                        rec.score >= 85
-                          ? "text-emerald-400"
-                          : rec.score >= 70
-                            ? "text-amber-400"
-                            : "text-muted-foreground",
-                      )}
-                    >
-                      {rec.score}
+                  {group.role}
+                </span>
+                {group.player && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-foreground font-medium">
+                      {group.player}
                     </span>
                   </div>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {group.recommendations.length} option
+                  {group.recommendations.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
 
-                  {/* Champion */}
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={champion.image}
-                      alt={rec.championName}
-                      className={cn(
-                        "w-9 h-9 rounded-lg border",
-                        isTopPick
-                          ? "border-primary/50"
-                          : "border-border-subtle",
-                      )}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "/images/champions/default.png";
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+            {/* Table Header - only for first group */}
+            {groupIndex === 0 && (
+              <div className="grid grid-cols-[60px_1fr_100px_90px_90px] gap-3 px-5 py-3 bg-muted/20 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <div>Score</div>
+                <div>Champion</div>
+                <div>Type</div>
+                <div>Needs</div>
+                <div>Mastery</div>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            <div className="divide-y divide-border-subtle/50">
+              {group.recommendations.map((rec, index) => {
+                const champion: Champion = {
+                  id: rec.championId,
+                  name: rec.championName,
+                  roles: (rec.flexLanes as any) || [],
+                  image: getChampionImageUrl(rec.championName),
+                };
+
+                const typeStyle = getTypeStyle(rec.type);
+                const masteryCount = getMasteryStars(rec.masteryLevel);
+                const reasonTooltip =
+                  rec.reasons?.length > 0
+                    ? rec.reasons.join(" • ")
+                    : "No details available";
+
+                return (
+                  <div
+                    key={`${rec.championId}-${index}`}
+                    onClick={() => onSelectChampion(champion)}
+                    title={reasonTooltip}
+                    className={cn(
+                      "grid grid-cols-[60px_1fr_100px_90px_90px] gap-3 px-5 py-3 items-center cursor-pointer transition-all duration-150",
+                      "hover:bg-muted/40 active:bg-muted/60",
+                      hasMultipleRoles && group.role && "border-l-4",
+                      hasMultipleRoles && roleStyle.border,
+                    )}
+                  >
+                    {/* Score */}
+                    <div>
+                      <span
+                        className={cn(
+                          "text-lg font-bold tabular-nums",
+                          rec.score >= 85
+                            ? "text-emerald-400"
+                            : rec.score >= 75
+                              ? "text-amber-400"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        {rec.score}
+                      </span>
+                    </div>
+
+                    {/* Champion */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative flex-shrink-0">
+                        <img
+                          src={champion.image}
+                          alt={rec.championName}
+                          className="w-10 h-10 rounded-xl border-2 border-border-subtle object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "/images/champions/default.png";
+                          }}
+                        />
+                        {rec.flexLanes && rec.flexLanes.length > 1 && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-cyan-500 flex items-center justify-center">
+                            <Zap className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
                         <p className="font-semibold text-sm text-foreground truncate">
                           {rec.championName}
                         </p>
-                        {rec.flexLanes && rec.flexLanes.length > 1 && (
-                          <span className="flex items-center gap-0.5 text-cyan-400">
-                            <Zap className="w-3 h-3" />
-                            <span className="text-[10px] font-medium">
-                              FLEX
-                            </span>
-                          </span>
-                        )}
+                        <p className="text-xs text-muted-foreground truncate">
+                          {rec.reasons?.[0] || "Strong pick"}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {rec.reasons[0]}
-                      </p>
+                    </div>
+
+                    {/* Type Badge */}
+                    <div>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold capitalize border",
+                          typeStyle.bg,
+                          typeStyle.text,
+                          typeStyle.border,
+                        )}
+                      >
+                        {getTypeIcon(rec.type)}
+                        <span>{rec.type}</span>
+                      </span>
+                    </div>
+
+                    {/* Team Needs */}
+                    <div>
+                      {rec.teamNeeds && rec.teamNeeds.length > 0 ? (
+                        <span
+                          className="inline-block px-2 py-1 text-xs font-medium rounded-md bg-emerald-500/10 text-emerald-400 truncate max-w-full"
+                          title={rec.teamNeeds.join(", ")}
+                        >
+                          {rec.teamNeeds[0]}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/50">
+                          —
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Mastery Stars */}
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3].map((star) => (
+                        <Star
+                          key={star}
+                          className={cn(
+                            "w-4 h-4 transition-colors",
+                            star <= masteryCount
+                              ? "text-amber-400 fill-amber-400"
+                              : "text-muted-foreground/20",
+                          )}
+                        />
+                      ))}
                     </div>
                   </div>
-
-                  {/* Type */}
-                  <div>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium capitalize",
-                        getTypeColor(rec.type),
-                      )}
-                    >
-                      {getTypeIcon(rec.type)}
-                      {rec.type}
-                    </span>
-                  </div>
-
-                  {/* Team Needs */}
-                  <div className="flex flex-wrap gap-0.5">
-                    {rec.teamNeeds && rec.teamNeeds.length > 0 ? (
-                      rec.teamNeeds.slice(0, 1).map((need) => (
-                        <span
-                          key={need}
-                          className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-400/10 text-emerald-400 truncate max-w-[70px]"
-                          title={need}
-                        >
-                          {need}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </div>
-
-                  {/* Mastery */}
-                  <div className="flex items-center gap-0.5">
-                    {[1, 2, 3].map((star) => (
-                      <Star
-                        key={star}
-                        className={cn(
-                          "w-3 h-3",
-                          star <= getMasteryStars(rec.masteryLevel)
-                            ? "text-amber-400 fill-amber-400"
-                            : "text-muted-foreground/30",
-                        )}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

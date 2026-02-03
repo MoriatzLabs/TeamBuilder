@@ -4,7 +4,7 @@
  */
 
 // Data Dragon CDN version - update as needed
-const DDRAGON_VERSION = "14.24.1";
+const DDRAGON_VERSION = "16.2.1";
 const DDRAGON_BASE_URL = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion`;
 
 // Special cases where the display name differs from the Data Dragon filename
@@ -51,6 +51,7 @@ const SPECIAL_CASES: Record<string, string> = {
   kogmaw: "KogMaw",
   "bel'veth": "Belveth",
   belveth: "Belveth",
+  yunara: "Yunara",
 };
 
 /**

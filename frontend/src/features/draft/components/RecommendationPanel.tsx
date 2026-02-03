@@ -1,6 +1,6 @@
 import { useDraftStore } from "../store/draftStore";
 import { RecommendationTable } from "./RecommendationTable";
-import { Sparkles, Loader2, Wifi, WifiOff } from "lucide-react";
+import { Loader2, Wifi, WifiOff, Sparkles } from "lucide-react";
 import type { Champion } from "../types/draft.types";
 import type {
   AIDraftState,
@@ -11,6 +11,7 @@ import type {
 import { useAIRecommendations } from "../hooks/useAIRecommendations";
 import { useEffect, useMemo } from "react";
 import { getChampionImageUrl } from "@/utils/championImageMapper";
+import { cn } from "@/lib/utils";
 
 interface RecommendationPanelProps {
   onSelectChampion: (champion: Champion) => void;
@@ -96,12 +97,11 @@ function mapTeamCompositionToAnalysis(
     .filter((s): s is (typeof validSpikes)[number] =>
       validSpikes.includes(s as (typeof validSpikes)[number]),
     );
-  const compositionType =
-    (["teamfight", "poke", "pick", "split", "mixed"] as const).includes(
-      comp.type as "teamfight" | "poke" | "pick" | "split" | "mixed",
-    )
-      ? (comp.type as TeamAnalysis["compositionType"])
-      : "mixed";
+  const compositionType = (
+    ["teamfight", "poke", "pick", "split", "mixed"] as const
+  ).includes(comp.type as "teamfight" | "poke" | "pick" | "split" | "mixed")
+    ? (comp.type as TeamAnalysis["compositionType"])
+    : "mixed";
 
   return {
     team,
@@ -199,14 +199,21 @@ export function RecommendationPanel({
         aiDraftState.currentTeam === "red" ? analysis : red,
       );
     }
-  }, [aiResponse, aiDraftState?.currentTeam, setRecommendations, setTeamAnalysis]);
+  }, [
+    aiResponse,
+    aiDraftState?.currentTeam,
+    setRecommendations,
+    setTeamAnalysis,
+  ]);
 
   if (isComplete) {
     return (
-      <div className="flex flex-col h-full bg-card rounded-xl border border-border-subtle overflow-hidden">
+      <div className="flex flex-col h-full bg-card rounded-2xl border border-border-subtle overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Sparkles className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+          <div className="text-center px-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-success/10 flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-success" />
+            </div>
             <h3 className="text-xl font-bold text-foreground mb-2">
               Draft Complete!
             </h3>
@@ -221,77 +228,142 @@ export function RecommendationPanel({
 
   const recommendations = (aiResponse?.recommendations || []).slice(0, 5);
 
+  // Get team data for subtitle display
+  const activeTeam = currentStep?.team === "blue" ? blueTeam : redTeam;
+  const enemyTeamData = currentStep?.team === "blue" ? redTeam : blueTeam;
+  const roleOrder = ["TOP", "JGL", "MID", "ADC", "SUP"];
+
+  // Calculate filled roles for display only (filtering happens in backend)
+  const getFilledRoles = (picks: (Champion | null)[]) => {
+    const filled: string[] = [];
+    picks.forEach((pick, idx) => {
+      if (pick !== null && roleOrder[idx]) {
+        filled.push(roleOrder[idx]);
+      }
+    });
+    return filled;
+  };
+
+  const ourFilledRoles = getFilledRoles(activeTeam?.picks || []);
+  const enemyFilledRoles = getFilledRoles(enemyTeamData?.picks || []);
+  const unfilledRoles = roleOrder.filter(
+    (role) => !ourFilledRoles.includes(role),
+  );
+  const enemyUnfilledRoles = roleOrder.filter(
+    (role) => !enemyFilledRoles.includes(role),
+  );
+
   return (
-    <div className="flex flex-col h-full bg-card rounded-xl border border-border-subtle overflow-hidden">
-      {/* Compact Header */}
-      <div className="px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-muted/5 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-primary" />
+    <div className="flex flex-col h-full bg-card rounded-2xl border border-border-subtle overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-4 min-w-0">
+          <div
+            className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+              isBanPhase
+                ? "bg-red-500/10 text-red-400"
+                : "bg-primary/10 text-primary",
+            )}
+          >
+            <Sparkles className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-foreground">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-foreground">
               {isBanPhase ? "Recommended Bans" : "Recommended Picks"}
             </h3>
-            <p className="text-xs text-muted-foreground line-clamp-1">
-              {aiResponse?.analysis ||
-                (isBanPhase
-                  ? "Target enemy comfort picks"
-                  : "Based on team comp and player pools")}
+            <p className="text-xs text-muted-foreground truncate">
+              {isBanPhase
+                ? enemyFilledRoles.length > 0
+                  ? `Target unfilled enemy roles: ${enemyUnfilledRoles.join(", ")}`
+                  : "Target enemy comfort picks and flex threats"
+                : unfilledRoles.length > 0
+                  ? `Recommending for: ${unfilledRoles.join(", ")}`
+                  : "All roles filled"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Connection Status */}
+        <div className="flex items-center gap-3 flex-shrink-0">
           {isLoading && (
-            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-xs hidden sm:inline">Analyzing...</span>
+            </div>
           )}
-          {isConnected ? (
-            <Wifi className="w-4 h-4 text-emerald-400" />
-          ) : (
-            <WifiOff className="w-4 h-4 text-red-400" />
-          )}
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+              isConnected
+                ? "bg-emerald-500/10 text-emerald-400"
+                : "bg-red-500/10 text-red-400",
+            )}
+          >
+            {isConnected ? (
+              <>
+                <Wifi className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Connected</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Offline</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Main Content - Recommendations fill left; Composition on right */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Recommendations - fills all horizontal and vertical space */}
-        <div className="flex-1 min-w-0 overflow-auto flex flex-col">
-          {/* Loading overlay */}
-          {isLoading && (
-            <div className="absolute inset-0 bg-card/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
-              <div className="flex flex-col items-center gap-3 p-6">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                  <Sparkles className="w-5 h-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                </div>
+      {/* Main Content */}
+      <div className="flex-1 min-h-0 overflow-auto relative">
+        {/* Loading State */}
+        {isLoading && recommendations.length === 0 && (
+          <div className="absolute inset-0 bg-card/95 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4 p-6">
+              <div className="relative">
+                <div className="w-14 h-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              </div>
+              <div className="text-center">
                 <p className="text-sm font-medium text-foreground">
                   {isBanPhase
                     ? "Finding optimal bans..."
                     : "Finding optimal picks..."}
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Analyzing team compositions
+                </p>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {recommendations.length > 0 ? (
-            <RecommendationTable
-              recommendations={recommendations}
-              onSelectChampion={onSelectChampion}
-              getChampionImageUrl={getChampionImageUrl}
-            />
-          ) : !isLoading && !isConnected ? (
-            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-              <WifiOff className="w-10 h-10 mb-3 text-red-400 opacity-50" />
-              <p className="text-sm">Connecting to server...</p>
+        {/* Recommendations Table */}
+        {recommendations.length > 0 ? (
+          <RecommendationTable
+            recommendations={recommendations}
+            onSelectChampion={onSelectChampion}
+            getChampionImageUrl={getChampionImageUrl}
+          />
+        ) : !isLoading && !isConnected ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-6">
+            <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+              <WifiOff className="w-7 h-7 text-red-400" />
             </div>
-          ) : !isLoading ? (
-            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-              <Sparkles className="w-10 h-10 mb-3 opacity-50" />
-              <p className="text-sm">Waiting for draft to start...</p>
-            </div>
-          ) : null}
-        </div>
+            <p className="text-sm font-medium text-foreground mb-1">
+              Connection Lost
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Attempting to reconnect to the server...
+            </p>
+          </div>
+        ) : !isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-6">
+            <p className="text-sm text-muted-foreground">
+              Waiting for draft to start...
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   );

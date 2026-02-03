@@ -8,6 +8,7 @@ import { RecommendationPanel } from "./RecommendationPanel";
 import { TeamAnalysisCard } from "./TeamAnalysisCard";
 import { DraftHeader } from "./DraftHeader";
 import { DraftControls } from "./DraftControls";
+import { PostDraftStrategyInline } from "./PostDraftStrategyInline";
 import type { Champion } from "../types/draft.types";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -145,19 +146,28 @@ export function DraftSimulator() {
           <TeamPanel team="blue" teamData={blueTeam} isActive={isBlueActive} />
         </div>
 
-        {/* Center - Recommendations + Team Analysis */}
+        {/* Center - Recommendations + Team Analysis OR Post-Draft Strategy */}
         <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-hidden">
-          {/* Recommendation Panel - takes available space */}
-          <div className="flex-1 min-h-0 overflow-auto">
-            <RecommendationPanel onSelectChampion={handleSelectChampion} />
-          </div>
+          {isComplete ? (
+            /* Post-Draft Strategy - shown inline when draft completes */
+            <div className="flex-1 min-h-0 overflow-auto">
+              <PostDraftStrategyInline />
+            </div>
+          ) : (
+            <>
+              {/* Recommendation Panel - takes ~55% of vertical space */}
+              <div className="flex-[55] min-h-0 overflow-auto">
+                <RecommendationPanel onSelectChampion={handleSelectChampion} />
+              </div>
 
-          {/* Team Analysis - only the team currently picking (from AI), full width */}
-          <div className="flex-shrink-0 w-full">
-            {currentStep?.team ? (
-              <TeamAnalysisCard team={currentStep.team} />
-            ) : null}
-          </div>
+              {/* Team Analysis - takes ~45% of vertical space for proper visibility */}
+              <div className="flex-[45] min-h-[200px] overflow-auto">
+                {currentStep?.team ? (
+                  <TeamAnalysisCard team={currentStep.team} />
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Right - Compact Champion Grid */}

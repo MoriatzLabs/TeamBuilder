@@ -18,14 +18,7 @@ import {
   getChampionInitials,
 } from "@/utils/championImageMapper";
 import { cn } from "@/lib/utils";
-import {
-  Loader2,
-  Crown,
-  TrendingUp,
-  Sword,
-  Shield,
-  Sparkles,
-} from "lucide-react";
+import { Loader2, Crown, TrendingUp, Sword, Shield } from "lucide-react";
 
 interface ChampionPoolChartProps {
   playerId: string;
@@ -290,9 +283,6 @@ function PickDistributionChart({
     <div className="bg-card rounded-2xl p-5 border border-border-subtle">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-violet-500" />
-          </div>
           <h4 className="font-semibold text-foreground">Pick Distribution</h4>
         </div>
         <span className="text-sm text-muted-foreground">
