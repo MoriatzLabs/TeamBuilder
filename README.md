@@ -76,11 +76,11 @@ graph TB
     
     UI --> CDN
     
-    style Cerebras fill:#6366f1
-    style RiotAPI fill:#e11d48
-    style Redis fill:#dc2626
-    style UI fill:#10b981
-    style DraftService fill:#f59e0b
+    style Cerebras fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style RiotAPI fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style Redis fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style UI fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style DraftService fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ## Data Flow
@@ -306,9 +306,9 @@ graph LR
     Recs --> T3
     Analysis --> T3
     
-    style T1 fill:#10b981
-    style T2 fill:#f59e0b
-    style T3 fill:#ef4444
+    style T1 fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style T2 fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style T3 fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 **Tier 1: Long-lived Cache (24 hours)**
