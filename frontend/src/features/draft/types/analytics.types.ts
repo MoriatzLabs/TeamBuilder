@@ -72,13 +72,13 @@ export interface AIDraftState {
   blueTeam: {
     name: string;
     bans: string[];
-    picks: { champion: string; role: string }[];
+    picks: { champion: string; role: string; player?: string }[];
     players: AIPlayerData[];
   };
   redTeam: {
     name: string;
     bans: string[];
-    picks: { champion: string; role: string }[];
+    picks: { champion: string; role: string; player?: string }[];
     players: AIPlayerData[];
   };
   availableChampions: string[];
