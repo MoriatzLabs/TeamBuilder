@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useDraftStore } from "../store/draftStore";
-import { useAppStore } from "@/store/appStore";
 import {
   Trophy,
   Target,
@@ -9,7 +8,6 @@ import {
   AlertTriangle,
   Loader2,
   X,
-  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -83,14 +81,6 @@ export function PostDraftStrategy({ onClose }: PostDraftStrategyProps) {
   const [error, setError] = useState<string | null>(null);
   const blueTeam = useDraftStore((state) => state.blueTeam);
   const redTeam = useDraftStore((state) => state.redTeam);
-  const resetDraft = useDraftStore((state) => state.reset);
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
-
-  const handleDraftAgain = () => {
-    resetDraft();
-    setCurrentView("team-setup");
-    onClose();
-  };
 
   useEffect(() => {
     const fetchStrategy = async () => {
@@ -183,9 +173,9 @@ export function PostDraftStrategy({ onClose }: PostDraftStrategyProps) {
 
   return (
     <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-auto">
-      <div className="h-full flex flex-col px-4 py-4">
+      <div className="min-h-full flex flex-col items-center justify-center px-4 py-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <div className="w-full max-w-4xl flex items-center justify-between mb-4 flex-shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary to-secondary/60 flex items-center justify-center">
               <Trophy className="w-5 h-5 text-white" />
@@ -201,15 +191,6 @@ export function PostDraftStrategy({ onClose }: PostDraftStrategyProps) {
           </div>
           <div className="flex items-center gap-3">
             <Button
-              variant="default"
-              size="sm"
-              onClick={handleDraftAgain}
-              className="gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Draft Again
-            </Button>
-            <Button
               variant="ghost"
               size="icon"
               onClick={onClose}
@@ -221,7 +202,7 @@ export function PostDraftStrategy({ onClose }: PostDraftStrategyProps) {
         </div>
 
         {/* Scrollable Content: single box for Early Game, Key Matchups, C9 Game Plan */}
-        <div className="flex-1 overflow-auto min-h-0 p-4">
+        <div className="w-full max-w-4xl p-4">
           <div className="bg-card rounded-xl border border-border-subtle p-4">
             <OverviewTab strategy={strategy} />
 
@@ -313,7 +294,7 @@ function OverviewTab({
           </div>
         </div>
       </div>
-      <br><br></br>
+      <div className="mt-8"></div>
 
       {/* Key Matchups */}
       {strategy.keyMatchups.length > 0 && (
