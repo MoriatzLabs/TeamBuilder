@@ -171,10 +171,10 @@ mindmap
         Lane Matchups
         Objective Priority
     
-    style root fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style Pre-Draft fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style Live Draft fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style Post-Draft fill:#000,stroke:#000,stroke-width:2px,color:#fff
+    style root fill:#1e293b,stroke:#475569,stroke-width:2px,color:#f1f5f9
+    style Pre-Draft fill:#334155,stroke:#64748b,stroke-width:2px,color:#f8fafc
+    style Live Draft fill:#334155,stroke:#64748b,stroke-width:2px,color:#f8fafc
+    style Post-Draft fill:#334155,stroke:#64748b,stroke-width:2px,color:#f8fafc
 ```
 
 ## 2026 Draft Rules Support
