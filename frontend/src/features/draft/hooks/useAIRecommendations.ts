@@ -23,8 +23,8 @@ function getDraftStateKey(state: AIDraftState | null): string {
     state.pickNumber,
     state.blueTeam.bans.join(","),
     state.redTeam.bans.join(","),
-    state.blueTeam.picks.map((p) => `${p.champion}:${p.role}`).join(","),
-    state.redTeam.picks.map((p) => `${p.champion}:${p.role}`).join(","),
+    state.blueTeam.picks.map((p) => `${p.champion}:${p.role}:${p.player ?? ""}`).join(","),
+    state.redTeam.picks.map((p) => `${p.champion}:${p.role}:${p.player ?? ""}`).join(","),
   ].join("|");
 }
 

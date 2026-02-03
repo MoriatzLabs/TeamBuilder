@@ -23,13 +23,13 @@ export interface DraftStateForAI {
   blueTeam: {
     name: string;
     bans: string[];
-    picks: { champion: string; role: string }[];
+    picks: { champion: string; role: string; player?: string }[];
     players: PlayerData[];
   };
   redTeam: {
     name: string;
     bans: string[];
-    picks: { champion: string; role: string }[];
+    picks: { champion: string; role: string; player?: string }[];
     players: PlayerData[];
   };
   availableChampions: string[];
@@ -332,7 +332,13 @@ export class CerebrasService {
         : draftState?.blueTeam;
 
     const filledRoles = activeTeam?.picks.map((p) => p.role) || [];
+    const filledPlayers = new Set(
+      (activeTeam?.picks.map((p) => p.player).filter(Boolean) as string[]) || [],
+    );
     const enemyFilledRoles = enemyTeam?.picks.map((p) => p.role) || [];
+    const enemyFilledPlayers = new Set(
+      (enemyTeam?.picks.map((p) => p.player).filter(Boolean) as string[]) || [],
+    );
     const allRoles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
     const unfilledRoles = allRoles.filter((r) => !filledRoles.includes(r));
     const enemyUnfilledRoles = allRoles.filter(
@@ -363,21 +369,33 @@ export class CerebrasService {
           return false;
         }
 
-        // For pick phase, filter out filled roles
-        if (draftState?.phase === 'pick' && rec.forRole) {
-          if (!unfilledRoles.includes(rec.forRole)) {
+        // For pick phase, filter out filled roles and players already done picking
+        if (draftState?.phase === 'pick') {
+          if (rec.forRole && !unfilledRoles.includes(rec.forRole)) {
             this.logger.debug(
               `Filtering out recommendation for filled role: ${rec.forRole}`,
             );
             return false;
           }
+          if (rec.forPlayer && filledPlayers.has(rec.forPlayer)) {
+            this.logger.debug(
+              `Filtering out recommendation for player already picked: ${rec.forPlayer}`,
+            );
+            return false;
+          }
         }
 
-        // For ban phase, filter out bans targeting filled enemy roles
-        if (draftState?.phase === 'ban' && rec.forRole) {
-          if (!enemyUnfilledRoles.includes(rec.forRole)) {
+        // For ban phase, filter out bans targeting filled enemy roles/players
+        if (draftState?.phase === 'ban') {
+          if (rec.forRole && !enemyUnfilledRoles.includes(rec.forRole)) {
             this.logger.debug(
               `Filtering out ban for filled enemy role: ${rec.forRole}`,
+            );
+            return false;
+          }
+          if (rec.forPlayer && enemyFilledPlayers.has(rec.forPlayer)) {
+            this.logger.debug(
+              `Filtering out ban for enemy player already picked: ${rec.forPlayer}`,
             );
             return false;
           }
@@ -609,21 +627,41 @@ CRITICAL RULES:
       ...new Set([...allBannedChamps, ...allPickedChamps]),
     ];
 
+    // Format picks as lane (player): champion
+    const formatPicksWithPlayer = (
+      picks: DraftStateForAI['blueTeam']['picks'],
+    ) =>
+      picks
+        .map((p) => `${p.role} (${p.player ?? '?'}): ${p.champion}`)
+        .join('; ') || 'none';
+
+    // Unavailable lanes/players (done picking) per side - DO NOT suggest for these
+    const blueDonePicking = blueTeam.picks.map(
+      (p) => `${p.role} (${p.player ?? '?'})`,
+    );
+    const redDonePicking = redTeam.picks.map(
+      (p) => `${p.role} (${p.player ?? '?'})`,
+    );
+
     let prompt = `Draft Analysis Request:
 Phase: ${phase.toUpperCase()} (pick ${pickNumber}/20)
 Your Team: ${activeTeam.name} (${currentTeam} side)
 Enemy Team: ${enemyTeam.name}
 
-Current Draft State:
+Current Draft State (lane (player): champion):
 - Blue bans: ${blueTeam.bans.join(', ') || 'none'}
 - Red bans: ${redTeam.bans.join(', ') || 'none'}
-- Blue picks: ${blueTeam.picks.map((p) => `${p.champion}(${p.role})`).join(', ') || 'none'}
-- Red picks: ${redTeam.picks.map((p) => `${p.champion}(${p.role})`).join(', ') || 'none'}
+- Blue picks: ${formatPicksWithPlayer(blueTeam.picks)}
+- Red picks: ${formatPicksWithPlayer(redTeam.picks)}
 
 UNAVAILABLE CHAMPIONS (already picked or banned - DO NOT RECOMMEND):
 ${unavailableChampsList.length > 0 ? unavailableChampsList.join(', ') : 'none'}
 
-Your team's unfilled roles: ${unfilledRoles.join(', ') || 'ALL FILLED'}
+UNAVAILABLE LANES/PLAYERS (done picking - DO NOT suggest picks/bans for these):
+- Blue side done picking: ${blueDonePicking.length > 0 ? blueDonePicking.join(', ') : 'none'}
+- Red side done picking: ${redDonePicking.length > 0 ? redDonePicking.join(', ') : 'none'}
+
+Your team's unfilled roles (need picks): ${unfilledRoles.join(', ') || 'ALL FILLED'}
 Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
 `;
 
@@ -665,20 +703,20 @@ Enemy's unfilled roles: ${enemyUnfilledRoles.join(', ') || 'ALL FILLED'}
         })
         .join('\n');
 
-      // Build explicit list of filled roles to exclude
+      // Build explicit list of filled roles/players to exclude
       const filledRolesInfo =
         filledRoles.length > 0
-          ? `\nALREADY FILLED (DO NOT RECOMMEND): ${filledRoles.join(', ')} - these roles have champions picked, skip them entirely.`
+          ? `\nALREADY FILLED - DO NOT RECOMMEND for these lanes/players: ${activeTeam.picks.map((p) => `${p.role} (${p.player ?? '?'})`).join(', ')}. Skip them entirely.`
           : '';
 
       prompt += `
-PICK PHASE - ONLY recommend for these UNFILLED roles: ${unfilledRoles.join(', ')}${filledRolesInfo}
+PICK PHASE - ONLY recommend for these UNFILLED roles/players: ${unfilledRoles.join(', ')}${filledRolesInfo}
 
-Players needing picks (UNFILLED roles only):
+Players needing picks (UNFILLED roles only; include "forPlayer" with player name when relevant):
 ${topChampLines}
 
-IMPORTANT: Each recommendation's "forRole" MUST be one of: ${unfilledRoles.join(', ')}
-DO NOT include any recommendations for ${filledRoles.length > 0 ? filledRoles.join(', ') : 'N/A'} - those are already picked.`;
+IMPORTANT: Each recommendation's "forRole" MUST be one of: ${unfilledRoles.join(', ')}. Set "forPlayer" to the player name when the recommendation targets a specific player.
+DO NOT include any recommendations for lanes/players already picked: ${filledRoles.length > 0 ? activeTeam.picks.map((p) => `${p.role} (${p.player ?? '?'})`).join(', ') : 'N/A'}.`;
     }
 
     if (phase === 'ban') {
@@ -697,20 +735,20 @@ DO NOT include any recommendations for ${filledRoles.length > 0 ? filledRoles.jo
         })
         .join('\n');
 
-      // Build explicit list of enemy filled roles to exclude
+      // Build explicit list of enemy filled roles/players to exclude
       const enemyFilledInfo =
         enemyFilledRoles.length > 0
-          ? `\nENEMY ALREADY PICKED (DO NOT TARGET): ${enemyFilledRoles.join(', ')} - these enemy roles are filled, banning for them is useless.`
+          ? `\nENEMY ALREADY PICKED - DO NOT TARGET these lanes/players: ${enemyTeam.picks.map((p) => `${p.role} (${p.player ?? '?'})`).join(', ')}. Banning for them is useless.`
           : '';
 
       prompt += `
-BAN PHASE - ONLY target these UNFILLED enemy roles: ${enemyUnfilledRoles.join(', ')}${enemyFilledInfo}
+BAN PHASE - ONLY target these UNFILLED enemy roles/players: ${enemyUnfilledRoles.join(', ')}${enemyFilledInfo}
 
 Enemy players who still need to pick (UNFILLED roles only):
 ${enemyTopLines}
 
-IMPORTANT: Each recommendation's "forRole" MUST target one of: ${enemyUnfilledRoles.join(', ')}
-DO NOT recommend bans for ${enemyFilledRoles.length > 0 ? enemyFilledRoles.join(', ') : 'N/A'} - enemy already picked those roles.`;
+IMPORTANT: Each recommendation's "forRole" MUST target one of: ${enemyUnfilledRoles.join(', ')}. Set "forPlayer" to the enemy player name when relevant.
+DO NOT recommend bans for enemy lanes/players already picked: ${enemyFilledRoles.length > 0 ? enemyTeam.picks.map((p) => `${p.role} (${p.player ?? '?'})`).join(', ') : 'N/A'}.`;
     }
 
     return prompt;

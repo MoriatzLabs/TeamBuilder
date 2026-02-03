@@ -44,12 +44,13 @@ function buildAIDraftState(
   const formatPicks = (
     picks: (Champion | null)[],
     players: any[],
-  ): { champion: string; role: string }[] => {
+  ): { champion: string; role: string; player?: string }[] => {
     return picks
       .filter((p): p is Champion => p !== null)
       .map((champion, idx) => ({
         champion: champion.name,
         role: players[idx]?.role || "TOP",
+        player: players[idx]?.name,
       }));
   };
 
