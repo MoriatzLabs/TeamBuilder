@@ -519,7 +519,7 @@ This is a hackathon project. Contributors are welcome to submit PRs for improvem
 
 ## License
 
-MIT
+Licensed under Apache-2.0 License
 
 ## Acknowledgments
 
