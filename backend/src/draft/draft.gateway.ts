@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { OpenAIService, DraftStateForAI } from './openai.service';
+import { CerebrasService, DraftStateForAI } from './cerebras.service';
 import { WS_EVENTS } from './types/events.types';
 import type { Team } from './types/analytics.types';
 
@@ -26,7 +26,7 @@ export class DraftGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(DraftGateway.name);
   private clientTeams: Map<string, Team> = new Map();
 
-  constructor(private readonly openaiService: OpenAIService) {}
+  constructor(private readonly cerebrasService: CerebrasService) {}
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
@@ -59,8 +59,8 @@ export class DraftGateway implements OnGatewayConnection, OnGatewayDisconnect {
         `Analytics requested for ${draftState.currentTeam} team, phase: ${draftState.phase}`,
       );
 
-      // Use streaming to send mock data first, then OpenAI data
-      for await (const response of this.openaiService.streamRecommendations(
+      // Use streaming to send mock data first, then Cerebras data
+      for await (const response of this.cerebrasService.streamRecommendations(
         draftState,
       )) {
         client.emit(WS_EVENTS.RECOMMENDATIONS, {
@@ -108,7 +108,8 @@ export class DraftGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Get recommendations (full state drives AI; updates as more picks/bans are made)
-      const response = await this.openaiService.getRecommendations(draftState);
+      const response =
+        await this.cerebrasService.getRecommendations(draftState);
 
       client.emit(WS_EVENTS.RECOMMENDATIONS, {
         recommendations: response.recommendations,

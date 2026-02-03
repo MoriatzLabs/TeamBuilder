@@ -8,9 +8,9 @@ export const envValidationSchema = Joi.object({
   GRID_STATS_FEED_ENDPOINT: Joi.string().uri().required(),
   GRID_WS_ENDPOINT: Joi.string().uri().required(),
 
-  // OpenAI API (optional - falls back to mock recommendations)
-  OPENAI_API_KEY: Joi.string().optional(),
-  OPENAI_MODEL: Joi.string().optional(), // e.g. gpt-5-nano (default), gpt-4o-mini
+  // Cerebras API (optional - falls back to mock recommendations)
+  CEREBRAS_API_KEY: Joi.string().optional(),
+  CEREBRAS_MODEL: Joi.string().optional(), // e.g. llama-4-scout-17b-16e-instruct (default)
 
   // Application
   PORT: Joi.number().default(3000),

@@ -11,7 +11,8 @@
       "WebFetch(domain:raw.communitydragon.org)",
       "WebFetch(domain:grid.gg)",
       "WebFetch(domain:dev.to)",
-      "WebFetch(domain:ddragon.leagueoflegends.com)"
+      "WebFetch(domain:ddragon.leagueoflegends.com)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
