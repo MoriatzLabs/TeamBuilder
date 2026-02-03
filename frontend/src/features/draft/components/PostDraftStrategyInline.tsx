@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useDraftStore } from "../store/draftStore";
-import { useAppStore } from "@/store/appStore";
 import {
   Trophy,
   Target,
@@ -9,9 +8,7 @@ import {
   Zap,
   AlertTriangle,
   Loader2,
-  RotateCcw,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 // Types matching backend interfaces
 interface TeamCompositionAnalysis {
@@ -79,13 +76,6 @@ export function PostDraftStrategyInline() {
   const [error, setError] = useState<string | null>(null);
   const blueTeam = useDraftStore((state) => state.blueTeam);
   const redTeam = useDraftStore((state) => state.redTeam);
-  const resetDraft = useDraftStore((state) => state.reset);
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
-
-  const handleDraftAgain = () => {
-    resetDraft();
-    setCurrentView("team-setup");
-  };
 
   useEffect(() => {
     const fetchStrategy = async () => {
@@ -182,10 +172,10 @@ export function PostDraftStrategyInline() {
             <Trophy className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-foreground">
+            <h1 className="text-lg font-bold text-foreground">
               Post-Draft Strategy
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               {blueTeam.name} vs {redTeam.name}
             </p>
           </div>
@@ -202,49 +192,40 @@ export function PostDraftStrategyInline() {
                   : "bg-muted/30 text-muted-foreground",
             )}
           >
-            <span className="text-xs font-bold uppercase">
+            <span className="text-base font-bold uppercase">
               {strategy.draftVerdict.advantage === "even"
                 ? "Even"
                 : `${strategy.draftVerdict.advantage === "blue" ? "Blue" : "Red"} Adv`}
             </span>
-            <span className="text-sm font-bold">
+            <span className="text-lg font-bold">
               {strategy.draftVerdict.confidence}%
             </span>
           </div>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleDraftAgain}
-            className="gap-1.5 h-8"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Draft Again
-          </Button>
         </div>
       </div>
 
       {/* Scrollable Content: single box for Early Game, Key Matchups, C9 Game Plan */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="bg-muted/10 rounded-xl border border-border-subtle p-4">
+      <div className="flex-1 overflow-auto p-4 flex items-center justify-center">
+        <div className="bg-muted/10 rounded-xl border border-border-subtle p-4 w-full">
           <OverviewTab strategy={strategy} />
 
           {/* C9 Game Plan (5 bullet points from AI) */}
           {strategy.c9GamePlanBullets?.length > 0 && (
-            <div className="border-t border-border-subtle pt-4 mt-4">
-              <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Target className="w-3.5 h-3.5 text-secondary" />
+            <div className="border-t border-border-subtle pt-6 mt-6">
+              <h3 className="text-base font-bold text-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-secondary" />
                 C9 Game Plan
               </h3>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {strategy.c9GamePlanBullets.map((bullet, idx) => (
                   <li
                     key={idx}
-                    className="flex items-start gap-3 px-3 py-2 rounded-lg bg-muted/20"
+                    className="flex items-start gap-3 px-4 py-3 rounded-lg bg-muted/20"
                   >
-                    <span className="text-xs font-bold text-muted-foreground mt-0.5 flex-shrink-0 w-5">
+                    <span className="text-base font-bold text-muted-foreground mt-0.5 flex-shrink-0 w-6">
                       {idx + 1}.
                     </span>
-                    <p className="text-xs text-foreground leading-relaxed">
+                    <p className="text-base text-foreground leading-relaxed">
                       {bullet}
                     </p>
                   </li>
@@ -267,24 +248,24 @@ function OverviewTab({
     <>
       {/* Early Game */}
       <div>
-        <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Zap className="w-3.5 h-3.5 text-amber-400" />
+        <h3 className="text-base font-bold text-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-amber-400" />
           Early Game
         </h3>
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div>
-            <div className="flex items-center justify-between text-xs mb-1">
+            <div className="flex items-center justify-between text-base mb-2">
               <span className="text-muted-foreground">Invade</span>
               <span className="font-semibold text-foreground">{strategy.earlyGame.invadeProbability}%</span>
             </div>
-            <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+            <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-500 rounded-full"
                 style={{ width: `${strategy.earlyGame.invadeProbability}%` }}
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <p className="text-base text-muted-foreground leading-relaxed">
             {strategy.earlyGame.jungleMatchup}
           </p>
         </div>
@@ -292,21 +273,21 @@ function OverviewTab({
 
       {/* Key Matchups */}
       {strategy.keyMatchups.length > 0 && (
-        <div className="border-t border-border-subtle pt-4 mt-4">
-          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Swords className="w-3.5 h-3.5 text-orange-400" />
+        <div className="border-t border-border-subtle pt-6 mt-6">
+          <h3 className="text-base font-bold text-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Swords className="w-5 h-5 text-orange-400" />
             Key Matchups
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {strategy.keyMatchups.map((matchup, idx) => (
               <div
                 key={idx}
-                className="flex items-start gap-3 px-3 py-2 rounded-lg bg-muted/20"
+                className="flex items-start gap-3 px-4 py-3 rounded-lg bg-muted/20"
               >
-                <span className="text-xs font-bold text-orange-400 mt-0.5 flex-shrink-0 w-5">
+                <span className="text-base font-bold text-orange-400 mt-0.5 flex-shrink-0 w-6">
                   {idx + 1}
                 </span>
-                <p className="text-xs text-foreground leading-relaxed">
+                <p className="text-base text-foreground leading-relaxed">
                   {matchup}
                 </p>
               </div>
