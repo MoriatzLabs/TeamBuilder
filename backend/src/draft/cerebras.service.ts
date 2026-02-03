@@ -156,6 +156,8 @@ export interface PostDraftStrategyResponse {
     reasoning: string;
   };
   coachingNotes: string[];
+  /** Exactly 5 bullet points for C9 team's game plan (AI-generated at end of draft). */
+  c9GamePlanBullets: string[];
 }
 
 // Cache for recommendations
@@ -1257,6 +1259,10 @@ DO NOT recommend bans for ${enemyFilledRoles.length > 0 ? enemyFilledRoles.join(
       }
 
       const parsed = JSON.parse(jsonContent) as PostDraftStrategyResponse;
+      if (!Array.isArray(parsed.c9GamePlanBullets) || parsed.c9GamePlanBullets.length < 5) {
+        const mock = this.getMockStrategy(draftState);
+        parsed.c9GamePlanBullets = mock.c9GamePlanBullets;
+      }
       this.logger.log('Strategy analysis generated successfully');
       return parsed;
     } catch (error) {
@@ -1310,10 +1316,17 @@ Return ONLY valid JSON (no markdown, no code blocks) with this structure:
     "confidence": 0-100,
     "reasoning": "Why this team has the advantage"
   },
-  "coachingNotes": ["note1", "note2", "note3"]
+  "coachingNotes": ["note1", "note2", "note3"],
+  "c9GamePlanBullets": [
+    "Bullet 1: First game plan point for C9",
+    "Bullet 2: Second game plan point for C9",
+    "Bullet 3: Third game plan point for C9",
+    "Bullet 4: Fourth game plan point for C9",
+    "Bullet 5: Fifth game plan point for C9"
+  ]
 }
 
-Be specific about champion abilities and synergies. Consider professional play patterns.`;
+c9GamePlanBullets must contain exactly 5 bullet-point strings. They are the AI-suggested game plan for the C9 team after the draft. If one team is named "C9" (or "Cloud9"), use that team; otherwise use the blue team as the reference. Be specific about champion abilities and synergies. Consider professional play patterns.`;
   }
 
   private buildStrategyPrompt(state: FinalDraftState): string {
@@ -1344,6 +1357,7 @@ Provide a comprehensive strategic breakdown including:
 4. Key matchups that will decide the game
 5. Overall draft verdict with confidence level
 6. Coaching notes for both teams
+7. Exactly 5 bullet points for the C9 team's game plan (c9GamePlanBullets). If a team is named C9 or Cloud9, use that team; otherwise use the blue team. Each bullet should be one clear, actionable game plan point.
 
 Consider champion synergies, counter-picks, power spikes, and professional meta.`;
   }
@@ -1474,6 +1488,13 @@ Consider champion synergies, counter-picks, power spikes, and professional meta.
         'Red team: Must create leads before 25 minutes',
         'Vision control around dragon pit is critical for both teams',
         'Track jungle pathing - first gank will set the tone',
+      ],
+      c9GamePlanBullets: [
+        'Play to your teamfight strength: group for dragons and contest objectives.',
+        'Protect scaling carries; avoid unnecessary early skirmishes.',
+        'Set up vision around objectives 1–2 minutes before spawn.',
+        'Use engage tools from support/jungle to start fights on your terms.',
+        'Close out before late game if ahead; do not overextend without vision.',
       ],
     };
   }
