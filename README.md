@@ -2,19 +2,6 @@
 
 A data-driven drafting assistant for professional esports teams, powered by AI-enhanced real-time analysis and historical match data.
 
-## Project Story
-
-From the era of Sneaky, Meteos and Hai to when Blaber flashed for Scuttle on Nidalee at MSI, C9 has shaped how I go about League. So I came into this hackathon planning to build the best Drafting Tool they could use. Something along the lines of the industry standard like Overwolf or ProComps.
-
-Then I found out we only had access to historic data on GRID, and wanted to run it down like pre-reformed Tyler 1.
-
-But here's the thing - coaches don't need another flashy overlay. They need REAL intel. They need to know that when FNC locks in Azir, they're about to prioritize scaling and give up first dragon 70% of the time. They need to see that Blaber on Lee Sin has a 15% higher first blood rate but dies 2.3 more times per game. They need data that WINS DRAFTS.
-
-So I pivoted. Hard.
-
-TeamBuilder isn't just a draft tracker - it's your scouting department compressed into an app. It's the difference between banning Aatrox because "it's strong" vs banning it because their top laner has an 85% win rate on it in the last month and they always pick it red side when it's available.
-
-This is the tool that gets C9 to Worlds. Again.
 
 ## System Architecture
 
