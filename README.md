@@ -6,6 +6,7 @@ A data-driven drafting assistant for professional esports teams, powered by AI-e
 ## System Architecture
 
 ```mermaid
+%%{init: {'theme':'neutral'}}%%
 graph TB
     subgraph "Frontend - React + Vite"
         UI[User Interface]
@@ -62,17 +63,12 @@ graph TB
     ChampService --> RiotAPI
     
     UI --> CDN
-    
-    style Cerebras fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style RiotAPI fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style Redis fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style UI fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style DraftService fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 ## Data Flow
 
 ```mermaid
+%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant User
     participant Frontend
@@ -117,6 +113,7 @@ sequenceDiagram
 ## Features Overview
 
 ```mermaid
+%%{init: {'theme':'neutral'}}%%
 mindmap
   root((TeamBuilder))
     Pre-Draft
@@ -124,7 +121,7 @@ mindmap
         C9 Roster
         Enemy Team
       Draft Configuration
-        First Selection Rule (2026)
+        First Selection Rule 2026
         Side Selection
         Pick Order
       Champion Pools
@@ -137,11 +134,11 @@ mindmap
         AI-Powered Bans
         Synergy Analysis
       Draft Tracking
-        Pick/Ban History
+        Pick Ban History
         Phase Indicator
         Team Composition
       Champion Grid
-        Search & Filter
+        Search and Filter
         Role-based View
         Quick Select
     Post-Draft
@@ -157,11 +154,6 @@ mindmap
         Early Game Plan
         Lane Matchups
         Objective Priority
-    
-    style root fill:#1e293b,stroke:#475569,stroke-width:2px,color:#f1f5f9
-    style Pre-Draft fill:#334155,stroke:#64748b,stroke-width:2px,color:#f8fafc
-    style Live Draft fill:#334155,stroke:#64748b,stroke-width:2px,color:#f8fafc
-    style Post-Draft fill:#334155,stroke:#64748b,stroke-width:2px,color:#f8fafc
 ```
 
 ## 2026 Draft Rules Support
@@ -169,18 +161,20 @@ mindmap
 TeamBuilder fully supports the **2026 League of Legends Pro Play Draft Rules**, including the **First Selection Rule**:
 
 - **First Selection Rule**: Teams can now choose either **Side** (Blue/Red) or **Pick Order** (First/Last)
-  - If Team A chooses side, Team B chooses pick order
-  - If Team A chooses pick order, Team B chooses side
-  - This breaks the old meta where Blue side always had first pick
-  - Red side can now have first pick if configured that way
-
+    
+    - If Team A chooses side, Team B chooses pick order
+    - If Team A chooses pick order, Team B chooses side
+    - This breaks the old meta where Blue side always had first pick
+    - Red side can now have first pick if configured that way
 - **Dynamic Draft Sequence**: The draft sequence is automatically generated based on your configuration, ensuring correct pick/ban order regardless of which team has first selection
-
+    
 - **Full Compatibility**: Supports both the new 2026 rules and legacy draft configurations for backwards compatibility
+    
 
 ## Tech Stack
 
 ### Frontend
+
 - **React 18** with TypeScript
 - **Vite** for ultra-fast build and HMR
 - **Zustand** for lightweight state management
@@ -190,6 +184,7 @@ TeamBuilder fully supports the **2026 League of Legends Pro Play Draft Rules**, 
 - **Radix UI** for accessible components
 
 ### Backend
+
 - **NestJS** with TypeScript
 - **Cerebras AI** for lightning-fast LLM inference
 - **Redis** for intelligent caching
@@ -197,12 +192,14 @@ TeamBuilder fully supports the **2026 League of Legends Pro Play Draft Rules**, 
 - **REST API** for data operations
 
 ### Infrastructure
+
 - **Docker** for Redis container
 - **Riot Data Dragon CDN** for champion assets
 
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 - Docker Desktop
 - Cerebras API Key (get from https://cerebras.ai/)
@@ -244,13 +241,13 @@ Visit **http://localhost:5173** to see the application.
 1. **Select Opponent Team**: Choose from T1, Gen.G, FlyQuest, or other teams
 2. **Configure Draft**: Use the 2026 First Selection Rule - choose C9's side (Blue/Red) or pick order (First/Last). The opponent will automatically get the complementary choice.
 3. **Start Draft**: Click "Start Draft" to begin the simulation
-4. **Draft Phase**: 
-   - AI recommends 2-3 champions per unfilled role
-   - Click a champion to select it
-   - Press Enter or click "Lock in Pick/Ban"
+4. **Draft Phase**:
+    - AI recommends 2-3 champions per unfilled role
+    - Click a champion to select it
+    - Press Enter or click "Lock in Pick/Ban"
 5. **Post-Draft Strategy**: Automatically shown after draft completes
-   - View win conditions, team analysis, and game plan
-   - Click "Draft Again" to start a new draft
+    - View win conditions, team analysis, and game plan
+    - Click "Draft Again" to start a new draft
 
 ## Project Structure
 
@@ -292,6 +289,7 @@ TeamBuilder/
 ## Caching Strategy
 
 ```mermaid
+%%{init: {'theme':'neutral'}}%%
 graph LR
     subgraph "Cache Tiers"
         T1[Long-lived<br/>24h TTL]
@@ -312,22 +310,21 @@ graph LR
     Matches --> T2
     Recs --> T3
     Analysis --> T3
-    
-    style T1 fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style T2 fill:#000,stroke:#000,stroke-width:2px,color:#fff
-    style T3 fill:#000,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 **Tier 1: Long-lived Cache (24 hours)**
+
 - Champion data (170+ champions, rarely changes)
 - Static assets and configurations
 
 **Tier 2: Medium-lived Cache (1 hour)**
+
 - Player champion pools
 - Team rosters and metadata
 - Historical match statistics
 
 **Tier 3: Short-lived Cache (5 minutes)**
+
 - AI recommendations (context-dependent)
 - Team composition analysis
 - Real-time draft state
@@ -335,24 +332,28 @@ graph LR
 ## API Endpoints
 
 ### Draft Endpoints
+
 ```
 POST   /api/draft/recommendations    # Get AI pick/ban recommendations
 POST   /api/draft/strategy           # Get post-draft strategy analysis
 ```
 
 ### Champion Endpoints
+
 ```
 GET    /api/champions                # Get all champions
 GET    /api/champions/:id            # Get champion by ID
 ```
 
 ### Player Endpoints
+
 ```
 GET    /api/players/c9               # Get C9 roster
 GET    /api/players/:id/champion-pool   # Get player's champion pool
 ```
 
 ### Match Statistics
+
 ```
 GET    /api/sample-matches/top-champions   # Get top champions by win rate
 GET    /api/sample-matches/player-stats    # Get player statistics
@@ -363,6 +364,7 @@ GET    /api/sample-matches/player-stats    # Get player statistics
 The application uses **Cerebras AI** for ultra-fast inference (sub-second responses):
 
 **Capabilities:**
+
 - Real-time pick/ban recommendations based on draft state
 - Team composition analysis (damage profile, power spikes)
 - Win condition generation
@@ -372,6 +374,7 @@ The application uses **Cerebras AI** for ultra-fast inference (sub-second respon
 **Model:** `llama-3.3-70b` (fastest LLM inference available)
 
 **Prompt Engineering:**
+
 - Dynamic system prompts based on draft phase
 - Context includes: team comp, enemy comp, available champions, player pools
 - Output parsing with fallback to mock data for reliability
@@ -379,6 +382,7 @@ The application uses **Cerebras AI** for ultra-fast inference (sub-second respon
 ## Development
 
 ### Build
+
 ```bash
 # Frontend production build
 cd frontend && npm run build
@@ -388,6 +392,7 @@ cd backend && npm run build
 ```
 
 ### Type Checking
+
 ```bash
 # Frontend
 cd frontend && npx tsc --noEmit
@@ -397,6 +402,7 @@ cd backend && npx tsc --noEmit
 ```
 
 ### Linting
+
 ```bash
 # Frontend
 cd frontend && npm run lint
@@ -405,17 +411,10 @@ cd frontend && npm run lint
 cd backend && npm run lint
 ```
 
-## Performance Targets
-
-- ✅ Initial page load: <2 seconds
-- ✅ Draft action response: <100ms
-- ✅ AI inference latency: <1 second (Cerebras)
-- ✅ Cache hit ratio: >80%
-- ✅ Champion image load: <200ms (Riot CDN)
-
 ## Environment Variables
 
 ### Backend (.env)
+
 ```env
 # Cerebras AI
 CEREBRAS_API_KEY=your_api_key_here
@@ -430,6 +429,7 @@ NODE_ENV=development
 ```
 
 ### Frontend (.env.local)
+
 ```env
 # Backend API
 VITE_API_URL=http://localhost:3000
@@ -438,6 +438,7 @@ VITE_API_URL=http://localhost:3000
 ## Deployment
 
 ### Docker Deployment
+
 ```bash
 # Build images
 docker build -t teambuilder-frontend ./frontend
@@ -448,6 +449,7 @@ docker-compose up -d
 ```
 
 ### Production Checklist
+
 - [ ] Set `NODE_ENV=production`
 - [ ] Configure Redis persistence
 - [ ] Set up SSL/TLS certificates
@@ -461,6 +463,7 @@ docker-compose up -d
 ### Common Issues
 
 **Redis Connection Failed**
+
 ```bash
 # Make sure Redis is running
 docker ps | grep redis
@@ -470,28 +473,24 @@ docker run -d -p 6379:6379 --name teambuilder-redis redis:alpine
 ```
 
 **Champion Images Not Loading**
+
 - The app uses Riot Data Dragon CDN (v16.2.1)
 - Check your internet connection
 - Verify championImageMapper.ts has correct version
 
 **AI Recommendations Slow**
+
 - Check Cerebras API key is valid
 - Verify network connectivity
 - Check Redis cache is working (should be instant on cache hit)
 
 **TypeScript Errors**
+
 ```bash
 # Clear node_modules and reinstall
 rm -rf node_modules package-lock.json
 npm install
 ```
-
-## Hackathon Info
-
-- **Event**: Cloud9 x JetBrains "Sky's the Limit"
-- **Deadline**: February 3, 2026 at 11:00 AM PST
-- **Category**: Comprehensive Assistant Coach (AI-powered analytics)
-- **Prize**: $6,000 + GDC trip + JetBrains license + swag
 
 ## Contributing
 
@@ -499,7 +498,7 @@ This is a hackathon project. Contributors are welcome to submit PRs for improvem
 
 ## License
 
-MIT
+Licensed under Apache-2.0 License
 
 ## Acknowledgments
 
