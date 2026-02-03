@@ -33,4 +33,39 @@ export class DraftController {
       timestamp: new Date().toISOString(),
     };
   }
+
+  @Post('game-plan')
+  async getGamePlan(
+    @Body()
+    payload: {
+      draftState: DraftStateForAI;
+      c9Team: 'blue' | 'red';
+    },
+  ) {
+    if (!payload?.draftState?.blueTeam || !payload?.draftState?.redTeam) {
+      return {
+        success: false,
+        error: 'Request body must be JSON with draftState and c9Team (blue or red)',
+      };
+    }
+    if (!payload.c9Team || !['blue', 'red'].includes(payload.c9Team)) {
+      return {
+        success: false,
+        error: 'c9Team must be "blue" or "red"',
+      };
+    }
+
+    this.logger.log(`Generating game plan for C9 (${payload.c9Team} team)`);
+
+    const result = await this.openaiService.generateGamePlan(
+      payload.draftState,
+      payload.c9Team,
+    );
+
+    return {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

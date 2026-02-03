@@ -1056,4 +1056,144 @@ Recommend bans that target enemy comfort picks for UNFILLED roles only.`;
 
     return needs.length > 0 ? needs : ['Utility'];
   }
+
+  /**
+   * Generate game plan (5 bullet points) for C9 team after draft completion.
+   * Takes final draft state and C9 team side (blue/red).
+   */
+  async generateGamePlan(
+    draftState: DraftStateForAI,
+    c9Team: 'blue' | 'red',
+  ): Promise<{ gamePlan: string[] }> {
+    if (!this.openai) {
+      return this.getMockGamePlan(draftState, c9Team);
+    }
+
+    const c9TeamData = c9Team === 'blue' ? draftState.blueTeam : draftState.redTeam;
+    const enemyTeamData = c9Team === 'blue' ? draftState.redTeam : draftState.blueTeam;
+
+    const c9Composition = this.calculateTeamComposition(c9TeamData);
+    const enemyComposition = this.calculateTeamComposition(enemyTeamData);
+
+    const prompt = this.buildGamePlanPrompt(
+      c9TeamData,
+      enemyTeamData,
+      c9Composition,
+      enemyComposition,
+    );
+
+    const model = this.getModel();
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `You are a League of Legends strategic coach. Generate a concise game plan with exactly 5 bullet points for Cloud9 (C9) team based on the completed draft. Focus on win conditions, power spikes, team composition strengths, and how to play around the enemy team's weaknesses. Keep each bullet point to 1-2 sentences. Return ONLY valid JSON: {"gamePlan": ["bullet 1", "bullet 2", "bullet 3", "bullet 4", "bullet 5"]}`,
+      },
+      { role: 'user' as const, content: prompt },
+    ];
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model,
+        messages,
+        response_format: { type: 'json_object' as const },
+        max_completion_tokens: 500,
+        ...(model !== 'gpt-5-nano' && { temperature: 0.7 }),
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        return this.getMockGamePlan(draftState, c9Team);
+      }
+
+      const parsed = JSON.parse(content) as { gamePlan: string[] };
+      if (Array.isArray(parsed.gamePlan) && parsed.gamePlan.length === 5) {
+        return { gamePlan: parsed.gamePlan };
+      }
+
+      this.logger.warn('Invalid game plan format from AI, using mock');
+      return this.getMockGamePlan(draftState, c9Team);
+    } catch (error) {
+      this.logger.error('Error generating game plan, using mock', error);
+      return this.getMockGamePlan(draftState, c9Team);
+    }
+  }
+
+  private buildGamePlanPrompt(
+    c9Team: DraftStateForAI['blueTeam'],
+    enemyTeam: DraftStateForAI['blueTeam'],
+    c9Comp: AIAnalysisResponse['teamComposition'] | undefined,
+    enemyComp: AIAnalysisResponse['teamComposition'] | undefined,
+  ): string {
+    const c9Picks = c9Team.picks.map((p) => `${p.champion} (${p.role})`).join(', ');
+    const c9Bans = c9Team.bans.join(', ') || 'none';
+    const enemyPicks = enemyTeam.picks.map((p) => `${p.champion} (${p.role})`).join(', ');
+    const enemyBans = enemyTeam.bans.join(', ') || 'none';
+
+    let prompt = `Draft Complete - Game Plan for Cloud9
+
+C9 Team Composition:
+Picks: ${c9Picks}
+Bans: ${c9Bans}
+`;
+    if (c9Comp) {
+      prompt += `Composition Type: ${c9Comp.type}
+Strengths: ${c9Comp.strengths.join(', ')}
+Weaknesses: ${c9Comp.weaknesses.join(', ')}
+Damage Balance: AP ${c9Comp.damageBalance.ap}%, AD ${c9Comp.damageBalance.ad}%
+Power Spikes: ${c9Comp.powerSpikes.join(', ')}
+Engage Level: ${c9Comp.engageLevel}%, Peel Level: ${c9Comp.peelLevel}%
+
+`;
+    }
+
+    prompt += `Enemy Team Composition:
+Picks: ${enemyPicks}
+Bans: ${enemyBans}
+`;
+    if (enemyComp) {
+      prompt += `Composition Type: ${enemyComp.type}
+Strengths: ${enemyComp.strengths.join(', ')}
+Weaknesses: ${enemyComp.weaknesses.join(', ')}
+Damage Balance: AP ${enemyComp.damageBalance.ap}%, AD ${enemyComp.damageBalance.ad}%
+Power Spikes: ${enemyComp.powerSpikes.join(', ')}
+Engage Level: ${enemyComp.engageLevel}%, Peel Level: ${enemyComp.peelLevel}%
+
+`;
+    }
+
+    prompt += `Generate 5 strategic bullet points for C9's game plan. Consider:
+- Win conditions based on team composition
+- Power spike timings and when to force fights
+- How to exploit enemy weaknesses
+- Key objectives and map control priorities
+- Itemization and draft-specific strategies`;
+
+    return prompt;
+  }
+
+  private getMockGamePlan(
+    draftState: DraftStateForAI,
+    c9Team: 'blue' | 'red',
+  ): { gamePlan: string[] } {
+    const c9TeamData = c9Team === 'blue' ? draftState.blueTeam : draftState.redTeam;
+    const c9Comp = this.calculateTeamComposition(c9TeamData);
+    const hasEngage = c9Comp && c9Comp.engageLevel >= 50;
+    const isAPHeavy = c9Comp && c9Comp.damageBalance.ap >= 60;
+
+    return {
+      gamePlan: [
+        hasEngage
+          ? 'Force teamfights around objectives using your strong engage tools.'
+          : 'Play for picks and skirmishes; avoid 5v5 teamfights until key items.',
+        isAPHeavy
+          ? 'Prioritize magic resistance itemization against enemy AP threats.'
+          : 'Build armor penetration and anti-tank items for mid-game power spike.',
+        c9Comp?.powerSpikes.includes('early')
+          ? 'Aggressively contest early objectives and invade enemy jungle.'
+          : 'Scale safely through early game; prioritize farm and vision control.',
+        'Control dragon and Baron timers; set up vision before objectives spawn.',
+        'Focus on shutting down enemy carry in teamfights; use crowd control effectively.',
+      ],
+    };
+  }
 }
